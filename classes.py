@@ -9,26 +9,53 @@ class LockPrinter:
 
 class BrewSettings:
     def __init__(self, utime_module, thread_module):
-        self.brew_temperature = 0
+        self.brew_temperature = 20
         self.lock = thread_module.allocate_lock()
         self.utime_module = utime_module
         self.thread_module = thread_module
         self.brew_button_state = False
         self.steam_button_state = False
         self.water_button_state = False
-
+        self.setting_changed = False
+        self.pre_infusion_time = 0
+        
+    def set_pre_infusion_time(self, time):
+        self.lock.acquire()
+        self.utime_module.sleep_ms(1)
+        self.pre_infusion_time = time
+        self.setting_changed = True
+        self.lock.release()
+        
+    def set_numeric_values(self, temperature, time):
+        self.lock.acquire()
+        # Varmista että get metodin return kerkeää valmistua
+        self.utime_module.sleep_ms(1)
+        self.brew_temperature = temperature
+        self.pre_infusion_time = time
+        self.setting_changed = True
+        self.lock.release()
+        
     def set_brew_temperature(self, temperature):
         self.lock.acquire()
         # Varmista että get metodin return kerkeää valmistua
         self.utime_module.sleep_ms(1)
         self.brew_temperature = temperature
+        self.setting_changed = True
         self.lock.release()
         
     def set_buttons_state(self, brew_button_state, steam_button_state, water_button_state):
         self.brew_button_state = brew_button_state
         self.steam_button_state = steam_button_state
         self.water_button_state = water_button_state
-
+    
+    def set_change_brew_state(self):
+        state = self.brew_button_state
+        self.brew_button_state = not state
+        
+    def get_pre_infusion_time(self):
+        time = self.pre_infusion_time
+        return time
+    
     def get_brew_temperature(self):
         self.lock.acquire()
         brew_temperature = self.brew_temperature
@@ -43,7 +70,19 @@ class BrewSettings:
 
     def get_changed_state(self):
         setting_changed = self.setting_changed
+        self.setting_changed = False
         return setting_changed
+    
+    def get_brew_button_state(self):
+        brew_button_state = self.brew_button_state
+        return brew_button_state
+    
+    def get_numeric_values(self):
+        temperature = self.brew_temperature
+        time = self.pre_infusion_time
+        return temperature, time
+
+
 
 class VirtualBoiler:
     def __init__(self):

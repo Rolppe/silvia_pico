@@ -16,10 +16,9 @@ from secrets import ssid, password
 def thread_ui():
     global lock_brew_temperature
     lock_printer = LockPrinter(_thread)
-    brew_settings = BrewSettings(utime, _thread)
+    #brew_settings = BrewSettings(utime, _thread)
 
-    # Määritä ulkoinen LED
-    led_pin = Pin("LED", Pin.OUT)
+
     set_station(time, network, ssid, password)
     s = set_socket(socket, time)
     
@@ -27,15 +26,15 @@ def thread_ui():
     while True:
         brew_button_state, steam_button_state, water_button_state = brew_settings.get_buttons_state()
         button_changed = False
+        temperature_changed = False
 
         # Hyväksy ja käsittele saapuvat yhteydet
         try:
             conn, addr = s.accept()
         except Exception as e:
             # Tulosta virheilmoitus
-            print("Virhe yhteyden käsittelyssä:", str(e))
+            lock_printer("Virhe yhteyden käsittelyssä:", str(e))
             
-        print(4)
         lock_printer.print("Yhteys pyynnöstä", addr)
 
         # Lue pyynnön sisältö
@@ -43,34 +42,40 @@ def thread_ui():
         request = str(request)
 
         # Etsi pyynnöstä lämpötila arvo
-        if 'GET /set_value?temperature=' in request:
+        if 'GET /set_value?brew_temperature=' in request:
             # Parsi temperature arvo
-            brew_temperature = request.split('GET /set_value?temperature=')[1].split(' ')[0]
-
+            brew_temperature = request.split('GET /set_value?brew_temperature=')[1].split('&')[0]
+            pre_infusion_time = request.split('GET /set_value?pre_infusion_time=')[0].split('&')[1].split('=')[1]
             # Muunna arvo kokonaisluvuksi
             brew_temperature = int(brew_temperature)
+            pre_infusion_time = int(pre_infusion_time)
+            
             brew_settings.set_brew_temperature(brew_temperature)
+            brew_settings.set_pre_infusion_time(pre_infusion_time)
             # Tallenna lämpötila tiedostoon
-            save_settings(brew_temperature, json)
+            save_settings(brew_temperature, pre_infusion_time, json)
             # Printtaa asetettu lämpötila
             lock_printer.print('Vastaanotettu lämpötila:', brew_temperature)
-            # Aseta LEDin tila vastaanotetun lämpötilan mukaan
-            if brew_temperature > 105:
-                led_pin.on()
-            else:
-                led_pin.off()
-
-        if 'GET /set_value?brew=true' in request:
+            lock_printer.print('Vastaanotettu pre-infusio aika:', pre_infusion_time)
+            temperature_changed = True
+        
+        
+        if 'GET /set_value?brew_button=true' in request:
             brew_button_state = not brew_button_state
+            #brew_settings.set_change_brew_state()
             button_changed = True
-
-        if 'GET /set_value?steam=true' in request:
-            steam_button_state = not steam_button_state
-            button_changed = True
-
-        if 'GET /set_value?water=true' in request:
-            water_button_state = not water_button_state
-            button_changed = True
+# 
+#         if 'GET /set_value?steam=true' in request:
+#             steam_button_state = not steam_button_state
+#             button_changed = True
+# 
+#         if 'GET /set_value?water=true' in request:
+#             water_button_state = not water_button_state
+#             button_changed = True
+        
+        if button_changed:
+                brew_settings.set_buttons_state(brew_button_state, steam_button_state, water_button_state)
+                button_changed = False
         
         # Lähetä vastaus
         response = response_HTML(brew_settings)
@@ -82,9 +87,8 @@ def thread_ui():
         # Nollaa conn-muuttuja
         conn = None
 
-        if button_changed:
-                brew_settings.set_buttons_state(brew_button_state, steam_button_state, water_button_state)
-                button_changed = False
+
+        
 
             
         # Aseta pieni viive ennen seuraavan käsittelyn aloittamista
@@ -165,17 +169,20 @@ def thread_harware():
     steaming_temperature = 130
     counter_brewing_time = 0
     bias = -0.55
-    
+
     if load_settings(json):
-        brew_settings.set_brew_temperature(load_settings(json))
+        brew_temperature, pre_infusion_time = load_settings(json)
+        brew_settings.set_numeric_values(brew_temperature, pre_infusion_time)
     else:
-        brew_settings.set_brew_temperature(100)
-    
+        brew_settings.set_numeric_values(100,0)
+
     sensor = set_sensor(max31865)
 
     while True:
+        brewing_temperature, pre_infusion_time = brew_settings.get_numeric_values()
         switch_brew, switch_steam, switch_water = brew_settings.get_buttons_state()
-        print(switch_brew, "BREW")
+        #if (brew_settings.get_changed_state() == True):
+        
         dummy_temperature = round(boiler.getTemperature(),2)
         acceleration = acceleration_calculator.get_acceleration(dummy_temperature)
         if acceleration > 100:
@@ -186,32 +193,53 @@ def thread_harware():
             acceleration_posotive = abs(acceleration_positive)
 
         if not switch_steam: #.value() == 0:
-            target_temperature = brew_settings.get_brew_temperature()
-
+            target_temperature = brewing_temperature
         else:
             target_temperature = steaming_temperature
-        
-
-        if dummy_temperature < (target_temperature - acceleration_positive + bias):
+        if (dummy_temperature < (target_temperature - acceleration_positive + bias)):
             relay_heater.value(1)
             boiler.heat()
         else:
             relay_heater.value(0)
             boiler.cooldown()
-        
         if switch_brew: #.value():
+            if pre_infusion_time:
+                for x in range(pre_infusion_time):
+                    print("preinfusion " + str(x))
+                    time.sleep(1)
+
             while True:
+                lock_printer.print("brewing time", counter_brewing_time)
+
+                dummy_temperature = round(boiler.getTemperature(),2)
+                lock_printer.print("Dummy temperature", dummy_temperature)
+                
+                acceleration = acceleration_calculator.get_acceleration(dummy_temperature)
+                lock_printer.print("acceleration", acceleration)
+                
                 relay_heater.value(1)
+                lock_printer.print("relay_heater: ", relay_heater.value())
+
                 relay_solenoid.value(1)
+                lock_printer.print("relay_solenoid: ", relay_solenoid.value())
+                
                 relay_pump.value(1)
+                lock_printer.print("relay_pump: ", relay_pump.value())
+                lock_printer.print("")
+                
+                boiler.cooldown()
+
+    
+
                 time.sleep(1)
                 counter_brewing_time += 1
+                switch_brew = brew_settings.get_brew_button_state()
                 if not switch_brew: #.value() == 0:
                     counter_brewing_time = 0
                     relay_solenoid.value(0)
                     relay_pump.value(0)
                     break
-
+        
         if switch_water: #.value():
             while True:
                 relay_heater.value(1)

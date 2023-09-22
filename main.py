@@ -1,443 +1,504 @@
 import time
 import _thread
 import utime
-import sys
 import json
-import uos
 from machine import Pin
 import adafruit_max31865 as max31865
 import socket
 import network
 
-from functions import read_temperature, save_settings, load_settings, set_station, set_socket, set_sensor, response_HTML, print_metrics
-from classes import LockPrinter, BrewSettings, VirtualBoiler, HeatingSpeedCalculator
+
+
+from functions import save_settings, load_settings, set_station, set_socket,  response_HTML, print_values
+from classes import LockPrinter, BrewData, VirtualBoiler, HeatingSpeedCalculator, Sensor
 from secrets import ssid, password
 
 
-# --- Käyttöliittymä ---
-def thread_ui():
+# --- UI ---
+def _threadui():
 
-    # Luo wifi yhteys
+    # Luo wifi yhteys # Create WiFi connection
     set_station(time, network, ssid, password, lock_printer)
     
-    # Luo socket
+    # Luo socket # Create Socket
     s = set_socket(socket, time, lock_printer)
     
-# --- Pääsilmukka ---
+# --- Pääsilmukka --- # --- MAIN LOOP --- 
     while True:
         
-        # Hae kytkimien tilat
-        brew_switch_state, steam_switch_state, water_switch_state = brew_settings.get_switches_state()
+        # Hae kytkimien tilat # Get the state of the switches
+        brew_switch_state, steam_switch_state, water_switch_state = brew_data.get_switches_state()
         
-        # Luo ja aseta switch_chanced lippuun False
+        # Luo ja aseta switch_chanced lippuun False # Set switches changed flag to False
         switch_changed = False
         
-        # Hyväksy ja käsittele saapuvat yhteydet
+        # Hyväksy ja käsittele saapuvat yhteydet # Accept incoming communications
         try:
             conn, addr = s.accept()
             
+        # Handle errors
         except Exception as e:
             # Tulosta virheilmoitus
             lock_printer("Virhe yhteyden käsittelyssä:", str(e))
             
-        # Lue ja muuta stringiksi pyynnön sisältö
+        # Lue ja muuta stringiksi pyynnön sisältö # Read request and transform it to string
         request = conn.recv(1024)
         request = str(request)
 
-        # Etsi pyynnöstä brew_temperature
+        # Etsi pyynnöstä brew_temperature # From request search for brew_temperature for numeric values
         if 'GET /set_value?brew_temperature=' in request:
             
-            # Parsi arvot requestistä
+            # Parsi arvot requestistä # Parse numeric values from request string
             brew_temperature = request.split('GET /set_value?brew_temperature=')[1].split('&')[0]
             steam_temperature = request.split('GET /set_value?brew_temperature=')[1].split('&')[1].split('=')[1]
             pre_infusion_time = request.split('GET /set_value?brew_temperature=')[1].split('&')[2].split('=')[1]
             pre_heat_time = request.split('GET /set_value?brew_temperature=')[1].split('&')[3].split('=')[1]
             pressure_soft_release_time = request.split('GET /set_value?brew_temperature=')[1].split('&')[4].split('=')[1]
 
-            # Muunna arvot kokonaisluvuksi
+            # Muunna arvot kokonaisluvuksi # Transform values to integer
             brew_temperature = int(brew_temperature)
             pre_infusion_time = int(pre_infusion_time)
             steam_temperature = int(steam_temperature)
             pressure_soft_release_time = int(pressure_soft_release_time)
             pre_heat_time = int(pre_heat_time)
             
-             # Tallenna arvot olioon 
-            brew_settings.set_static_values(brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time)
+             # Tallenna arvot olioon # Store values to object
+            brew_data.set_static_values(brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time)
             
-            # Tallenna arvot tiedostoon
-            save_settings(brew_settings, json)
-            
-        
+            # Tallenna arvot tiedostoon # Store values to file
+            save_settings(brew_data, json)
                     
-        # Etsi pyynnöstä brew_switch = true
+        # Etsi pyynnöstä brew_switch = true # Check if brew switch is in the request
         if 'GET /set_value?brew_switch=true' in request:
             brew_switch_state = not brew_switch_state
             switch_changed = True
 
-        # Etsi pyynnöstä steam_switch = true
+        # Etsi pyynnöstä steam_switch = true # Check if steam switch is in the request
         if 'GET /set_value?steam_switch=true' in request:
             steam_switch_state = not steam_switch_state
             switch_changed = True
 
-        # Etsi pyynnöstä water_switch = true
+        # Etsi pyynnöstä water_switch = true # Check if water switch is in the request
         if 'GET /set_value?water_switch=true' in request:
             water_switch_state = not water_switch_state
             switch_changed = True
         
-        # Jos nappia on painettu niin tallenna olioon ja nollaa lippu
+        # Jos nappia on painettu niin tallenna olioon ja nollaa lippu # If button has pressed, store state of the switches toobject
         if switch_changed:
-            brew_settings.set_switches_state(brew_switch_state, steam_switch_state, water_switch_state)
+            brew_data.set_switches_state(brew_switch_state, steam_switch_state, water_switch_state)
             switch_changed = False
         
-        # Lähetä vastaus
-        response = response_HTML(brew_settings, boiler)
+        # Luo vastaus # Create response
+        response = response_HTML(brew_data, boiler) # (if not connected to hardware)
+        # response = response_HTML(brew_data, sensor) # (if connected to hardware)
+        
+        # Lähetä vastaus # Send response
         conn.send(response)
 
-        # Sulje yhteys
+        # Sulje yhteys # Close connection
         conn.close()
 
-        # Nollaa conn-muuttuja
+        # Nollaa conn-muuttuja # Nullify conn variable
         conn = None
             
-        # Aseta pieni viive ennen seuraavan käsittelyn aloittamista
+        # Aseta pieni viive ennen seuraavan käsittelyn aloittamista # Set up small delay before next handling
         time.sleep(1)
         
 ###################################################################################
 
 
-# --- Hardware ---
-def thread_harware():
+# --- HARDWARE ---
+def _threadharware():
     
-    # Aseta heating_speed_multiplier. 
+    # Aseta heating_speed_multiplier. # Set value for heating speed multiplier
     heating_speed_multiplier = 1   
     
-    # Luo HeatingSpeedCalculator olio
+    # Luo HeatingSpeedCalculator olio # Create heat speed calculating object
     heating_speed_calculator = HeatingSpeedCalculator(utime, heating_speed_multiplier)
     
-    # Aseta releiden ulostulo pinnit
+    # Aseta releiden ulostulo pinnit # Set the output pin's for relays
     relay_heater = Pin(16, Pin.OUT, value = 0)
     relay_solenoid = Pin(17, Pin.OUT, value = 0)
     relay_pump = Pin(18, Pin.OUT, value = 0)
 
-    # Aseta kytkimet (# = sisääntulopinnit)
+    # Aseta kytkimet (# = sisääntulopinnit) # Set the input switches (Pin's)
     switch_brew = False    # switch_brew = Pin(7, Pin.IN, Pin.PULL_DOWN)
     switch_steam = False   # switch_steam = Pin(9, Pin.IN, Pin.PULL_DOWN)
     switch_water = False   # switch_water = Pin(8, Pin.IN, Pin.PULL_DOWN)
     
-    # Aseta oletusarvot
+    # Luo target_temperature ja counter_brew_time # Set up the target temperature and counter for brewing time
     target_temperature = 0
     counter_brew_time = 0
 
-    # Aseta lämpötilan biasointi
+    # Aseta lämpötilan haarukan biasointi # Set up bias for finetuning temperature
     bias = 0.75
     
-    # Aseta aloitus mode
-    brew_settings.set_mode("idle")
+    # Aseta aloitus mode # Set mode to idle
+    brew_data.set_mode("idle")
 
-    # Lataa asetukset
-    load_settings(json, brew_settings)
+    # Lataa asetukset # Load settings (to brew_data object)
+    load_settings(json, brew_data)
     
-    # Aseta sensori
-    sensor = set_sensor(max31865)
-    
-    # Hae lämpötila virtuaaliselta kattilalta
-    boiler_temperature = boiler.get_temperature()# round(read_temperature(sensor), 2)
-    
-    switch_brew = False
-    switch_steam = False
-    switch_water = False
+    # Hae lämpötila  kattilalta # Get the boiler temperature
+    boiler_temperature = boiler.get_temperature() # (when not connected to hardware)
+    # boiler_temperature = sensor.read_temperature (when connected on hardware)
 
-# --- Pika-esilämmitys ---
+# --- ESILÄMMITYS --- # --- PRE-HEATING ---
 
-    # Jos Lämpötila käynnistäessä alle 80 celsius astetta
+    # Jos Lämpötila käynnistäessä alle 80 celsius astetta # If temperature at the start is below 80 degrees celcius. Make start pre-heating
     if boiler_temperature < 80:
         
-        # Tee luuppi joka lämmittää kattilaa kunnes lämpötila on 130 celsius astetta
+        # Tee luuppi joka lämmittää kattilaa kunnes lämpötila on 130 celsius astetta # Create loop that is going while temperature is less than 130 degrees celcius
         while boiler_temperature < 130:
-            brew_settings.set_mode("Quick heat-up start")
             
-            # Hae lämpötilan muutosnopeus
+            # Aseta mode arvoksi "Quick heat-up start" # Set the mode to "Quick heat-up start"
+            brew_data.set_mode("Quick heat-up start")
+            
+            # Hae lämpötilan muutosnopeus # Calculate the heat up speed
             heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature)
             
-            # Aseta lämmitys rele arvoon 1
+            # Aseta lämmitys rele arvoon 1 # Start heating the boiler
             relay_heater.value(1)
                 
-            # Lämmitä virtuaalikattilaa
+            # Lämmitä virtuaalikattilaa # Heat the virtual boiler
             boiler.heat_up()
                         
-            # Tulosta metriikat
-            print_metrics(lock_printer, brew_settings, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump)
+            # Tulosta numero arvot # Print essential values
+            print_values(lock_printer, brew_data, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when not connected to harware)
+            # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
             
+            # Aseta viive 1s. # Set up 1 second delay (to be reduced to 0.1 seconds when connected to hardware)
             time.sleep(1)
+            
+            # Hae kattilan lämpötila # Get the boiler temperature
+            boiler_temperature = boiler.get_temperature() # (when not connected to hardware)
+            # boiler_temperature = sensor.read_temperature (when connected on hardware)
         
-            boiler_temperature = boiler.get_temperature()
-        
-        # Aseta lämmitys rele arvoon 0
+        # Aseta lämmitys rele arvoon 0 # Stop heating the boiler
         relay_heater.value(0)
 
-# --- Pääslmukka ---
+# --- PÄÄSILMUKKA --- # --- MAIN LOOP ---
     while True:
         
-        # Hae brew_settings oliosta uutto asetukset
-        brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_settings.get_static_values()
-        switch_brew, switch_steam, switch_water = brew_settings.get_switches_state()
+        # Hae brew_data oliosta uutto asetukset # Get brew settings from object
+        brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()
         
-        # Hae lämpötila virtuaaliselta kattilalta
-        boiler_temperature = boiler.get_temperature() # round(read_temperature(sensor), 2)
+        # Hae oliosta kytkimien asennot # Get the state of the switches # 
+        switch_brew, switch_steam, switch_water = brew_data.get_switches_state()
         
-        # Hae lämpötilan muutosnopeus
+        # Hae lämpötila virtuaaliselta kattilalta # Get temperature from the boiler
+        boiler_temperature = boiler.get_temperature() # (when not connected to hardware)
+        
+        # Hae lämpötilan muutosnopeus # Get calculation of temperature change speed
         heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature) 
         
-        # Aseta counter_brewing_time"
+        # Aseta counter_brewing_time" # Set brewing time counter to 0
         counter_brewing_time = 0
-            
+        
+        # Create flag for indicatin 
+        #flag_pre_infusion_full_heat = False
     
-    # --- Uutto tila ---   
-        if switch_brew: #.value():
+    # --- UUTTOTILA --- # --- BREW MODE ---
+        if switch_brew: # (when not connected to harware)
+        # if switch_brew.value(): (when connected to hardware)
             
-            # Aseta solenoidi rele arvoon 1
+            # Aseta solenoidi rele arvoon 1 # Set solenoid to brewing (pressure) mode
             relay_solenoid.value(1)
+            
+            # Laske pre-heat aika ennen pre-infuusiota # Calulate pre-heat time before pre-infusion
+            pre_heat_time_before_pre_infusion = pre_heat_time - pre_infusion_time
+            
+            # If pre-heat time before preinfusion is negative: set it zero
+            if pre_heat_time_before_pre_infusion < 0:
+                pre_heat_time_before_pre_infusion = 0
+            
+            # Vähennä pre-heat ajasta ennen preinfusionia lämmitys aika #  Calculate pre-heating time for pre-infusion
+            pre_heat_time_on_pre_infusion = pre_heat_time - pre_heat_time_before_pre_infusion #
+                        
                         
         # --- Pre-heat ---
         
-            # Jos pre-heat ennen pre-infuusio
-            if pre_heat_time > pre_infusion_time:
+            # Jos pre-heat ennen pre-infuusio # If pre-heat time exceeds pre-infusion time: Pre-heat before pre-infusion
+            if pre_heat_time_before_pre_infusion > 0:
                 
-                # Laske pre-heat aika ennen pre-infuusiota
-                pre_heat_before_pre_infusion = pre_heat_time - pre_infusion_time
-                
-                # Vähennä pre-heat ajasta ennen preinfusionia lämmitys aika
-                pre_heat_time = pre_heat_time - pre_infusion_time
-                
-                # Aseta lämmitys rele arvoon 1
+                # Aseta lämmitys rele arvoon 1 # Start heating the boiler
                 relay_heater.value(1)
                 
-                # Viivytä pre_heat_before_preingusion ajan
-                for x in range(pre_heat_before_pre_infusion):
+                # Viivytä pre_heat_before_preingusion ajan # Create for loop for pre-heat time before pre-infusion 
+                for x in range(pre_heat_time_before_pre_infusion):
                     
-                    # Aseta modeksi Pre_heat
-                    brew_settings.set_mode("Pre-heat " + str(x + 1) + "s.")
+                    # Aseta modeksi Pre_heat # Set mode to pre-heat
+                    brew_data.set_mode("Pre-heat " + str(x + 1) + "s.")
                     
-                    # Lämmitä virtuaali kattilaa
+                    # Lämmitä virtuaali kattilaa # Heat up virtual boiler
                     boiler.heat_up()
                     
-                    # Hae kattilan lämpötila
-                    boiler_temperature = boiler.get_temperature()
+                    # Hae kattilan lämpötila # Get boiler temperature
+                    boiler_temperature = boiler.get_temperature() # (when not connected to hardware)
+                    # boiler_temperature = sensor.read_temperature (when connected on hardware)
                     
-                    # Tulosta metriikat
-                    print_metrics(lock_printer, brew_settings, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump)
+                    # Tulosta numeriset arvot # Print essential metrics
+                    print_values(lock_printer, brew_data, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when not connected to harware)
+                    # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
                 
-                    # Aseta viive: 1 sekunti
+                    # Aseta viive: 1 sekunti # Set delay 1 second
                     time.sleep(1)
             
-            # Muussa tapauksessa aseta lämmitysrele arvoon 0
+            # Muussa tapauksessa aseta lämmitysrele arvoon 0 # Else stop heating the boiler
             else:
                 relay_heater.value(0)
 
-        # --- Pre-infusion ---
         
-            # Toteuta for loop pre-infusionin pituiseksi siten että pumppu
-            # on puolet ajasta päällä ja pre-heat pre_heat_time:n mukaisesti
+        # --- PRE-INFUSION ---
+        
+            # Create loop for the time of the preinfusion
             for x in range(pre_infusion_time):
                 
-                
-                
-                # Aseta pumppu rele arvoon 1
+                # Aseta pumppu rele arvoon 1 # Start the pump
                 relay_pump.value(1)
                 
-                # Jos pre_heat_time on yhtäsuuri tai suurempi kun jäljellä oleva pre_infusion_time
-                if (pre_infusion_time - x <= pre_heat_time):
+                # Jos pre_heat_time on yhtäsuuri tai suurempi kun jäljellä oleva pre_infusion_time # If there is pre heat before (optional) pre-infusion and brew
+                if (pre_heat_time_on_pre_infusion == pre_infusion_time - x):
                     
-                    # Aseta lämmitysrele arvoon 1
+                    # Aseta lämmitysrele arvoon 1 # Start pre-heating the boiler
                     relay_heater.value(1)
                     
-                    
-                # Jos lämmitys rele on arvossa: 0, aseta modeksi Pre-infusion
+                # Jos lämmitys rele on arvossa: 0, aseta modeksi Pre-infusion # If boiler is not heating set mode to "Pre-infusion"
                 if relay_heater.value() == 0:
-                    brew_settings.set_mode("Pre-infusion "+ str(x + 1) +"s.")
+                    brew_data.set_mode("Pre-infusion "+ str(x + 1) +"s.")
                     
-                    # Jäähdytä virtuaaliboileria
+                    # Jäähdytä virtuaaliboileria # Cood down the virtual boiler
                     boiler.cooldown()
                 
-                # Muussa tapauksessa aseta modeksi Pre-infusion + Pre-heat
+                # Muussa tapauksessa aseta modeksi Pre-infusion + Pre-heat # Else set mode to "Pre-infusion + Pre-heat"
                 else:
-                    brew_settings.set_mode("Pre-infusion + Pre-heat "+ str(x + 1) +"s.")
-                    # Jäähdytä virtuaaliboileria
+                    brew_data.set_mode( "Pre-heat "+ str(x + 1 + pre_heat_time_before_pre_infusion) +"s. Pre-infusion" + str(x + 1)+ "s. ")
+                    
+                    # Jäähdytä virtuaaliboileria # Cool down the virtual boiler
                     boiler.cooldown(0.5)
                 
-                # Hae kattilan lämpötila
-                boiler_temperature = boiler.get_temperature()
+                # Hae kattilan lämpötila # Get the boiler temperature 
+                boiler_temperature = boiler.get_temperature() # (when not connected to hardware)
+                #boiler_temperature  = sensor.read_temperature() (when connected on hardware)
                 
-                # Tulosta metriikat
-                print_metrics(lock_printer, brew_settings, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump)
+                # Tulosta numeriset arvot # Print essential values 
+                print_values(lock_printer, brew_data, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when not connected to harware)
+                # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
                 
-                # Aseta viive 0.5 s.
+                # Aseta viive 0.5s. # Set delay 0.5 seconds. this needs to be adjusted for suitable pressure when connected to hardware
                 time.sleep(0.5)
                 
-                # Aseta pumppu rele arvoon 0
+                # Aseta pumppu rele arvoon 0 # Stop the pump
                 relay_pump.value(0)
                 
-                # Tulosta metriikat
-                print_metrics(lock_printer, brew_settings, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump)
+                # Tulosta numeriset arvot # Print essential values
+                print_values(lock_printer, brew_data, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when not connected to harware)
+                # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
                                 
-                # Aseta viive 0.5 s.
+                # Aseta viive 0.5 s. # Set delay 0.5 seconds. this needs to be adjusted for suitable pressure when connected to hardware
                 time.sleep(0.5)
             
-            # Aseta lämmitysrele arvoon 1
+            # Uuttoluuppia ennakoide:
+            # Aseta relay_heater arvoon 1 # Start heating the boiler for brewing
             relay_heater.value(1)
             
-            # Aseta pumppu rele arvoon 1
+            # Aseta relay_pump arvoon 1 # Start the pump for brewing
             relay_pump.value(1)
 
         # --- Uuttoluuppi ---
         
             while True:
 
-                # Hae lämpötila virtuaaliselta kattilalta
-                boiler_temperature = boiler.get_temperature()
+                # Hae lämpötila virtuaaliselta kattilalta # Get the boiler temperature
+                boiler_temperature = boiler.get_temperature() # (when not connected to hardware)
+                # boiler_temperature = sensor.read_temperature() (when connected on hardware)
                 
-                # Laske kattilan lämmitysnopeus
+                # Laske kattilan lämmitysnopeus # Get calculated heating speed
                 heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature)
                 
-                # Aseta modeksi Brew
-                brew_settings.set_mode("Brew " + str(counter_brewing_time) + " s.")
+                # Aseta modeksi Brew # Set mode to "Brew"
+                brew_data.set_mode("Brew " + str(counter_brewing_time) + " s.")
                 
-                # Tulosta metriikat
-                print_metrics(lock_printer, brew_settings, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump)
+                # Tulosta numeriset arvot # Print essential values
+                print_values(lock_printer, brew_data, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when not connected to harware)
+                # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
         
-                # Simuloi virtuaaliboilerin jäähtymistä
+                # Simuloi virtuaaliboilerin jäähtymistä # Cool down virtual boiler
                 boiler.cooldown()
                 
-                # aseta viive: 1s.
+                # aseta viive: 1s. # Set delay 1 second (decrease as fit when connected to hardware)
                 time.sleep(1)
                 
-                # Lisää counter_brewing_time arvoa yhdellä
+                # Lisää counter_brewing_time arvoa yhdellä # Add 1 to brewing time counter
                 counter_brewing_time += 1
                 
-                # Hae kytkimien asennot
-                switch_brew = brew_settings.get_brew_switch_state()
+                # Hae kytkimien asennot # Get the state of the switches
+                switch_brew = brew_data.get_brew_switch_state()
                 
-                # Jos switch_brew on kytketty pois nollaa counter,
-                # suorita pehmeä paineen lasku, aseta relay_heater
-                # ja relay_pump arvoihin 0 sekä riko luuppi
-                if not switch_brew: #.value() == 0:
+                # Jos switch_brew on kytketty asentoon arvoon 0 # If brewing switch is turned off brake loop and make (optional) Pressure soft release
+                if not switch_brew:
+                # if switch_brew.value() == 0:
+                    
+                    # Nollaa counter_brewing_time # Reset brewing time counter
                     counter_brewing_time = 0
+                    
+                    # Aseta relay_heater arvoon 0 # Stop heating the boiler
                     relay_heater.value(0)
+                    
+                    # Asetas relay_pump arvoon 0 # Stop the pump
                     relay_pump.value(0)
                     
                 # --- Pressure soft release ---
                     
-                    # Luo luuppi joka viivyttää annetun ajan relay_solenoid arvon muuttumista 0:aan
+                    # Luo luuppi joka viivyttää annetun ajan relay_solenoid arvon muuttumista 0:aan # Create loop for the time of pressure release
                     for x in range(pressure_soft_release_time):
                         
-                        # Aseta mode Soft pressure release
-                        brew_settings.set_mode("Soft pressure release " + str(x + 1) +"s.")
+                        # Aseta mode Soft pressure release # Set mode to "Soft pressure release"
+                        brew_data.set_mode("Soft pressure release " + str(x + 1) +"s.")
                         
-                        # Tulosta metriikat
-                        print_metrics(lock_printer, brew_settings, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump)
+                        # Tulosta numeriset arvot # Print essential values 
+                        print_values(lock_printer, brew_data, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when not connected to harware)
+                        # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
                         
-                        # Aseta viive: 1s.
+                        # Aseta viive: 1s. # Set delay for 1 second
                         time.sleep(1)
                     
-                    # Aseta relay_solenoid arvoon 0
+                    # Aseta relay_solenoid arvoon 0 # Release brewing pressure
                     relay_solenoid.value(0)
                     
-                    # Riko uuttoluuppi
+                    # Riko uuttoluuppi # Break the brewing loop
                     break
         
 
-    # --- Vesitila ---
+    # --- VESITILA --- # --- WATER ---
 
-        if switch_water: #.value():
+        # Jos switch_water on arvossa 0 # If water switch is on
+        if switch_water:
+        # if switch_water.value():
             
-            # Aseta modeksi: Water
-            brew_settings.set_mode("Water")
+            # Aseta modeksi: Water # Set mode to water
+            brew_data.set_mode("Water")
             
-            # Tulosta metriikat
-            print_metrics(lock_printer, brew_settings, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump)
+            # Tulosta numeeriset arvot # Print essential values
+            print_values(lock_printer, brew_data, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when not connected to harware)
+            # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
             
-            # Vesiluuppi
+            # Vesiluuppi # Water loop
             while True:
                 
-                # Hae lämpötila virtuaaliselta kattilalta
-                boiler_temperature = boiler.get_temperature()
+                # Hae lämpötila virtuaaliselta kattilalta # Get the boiler temperature
+                boiler_temperature = boiler.get_temperature() # (when not connected to hardware)
+                # boiler_temperature = sensor.read_temperature (when connected on hardware)
                 
-                # Laske kattilan lämmitysnopeus
+                # Laske kattilan lämmitysnopeus # Get calculated heating speed
                 heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature)
                 
-                # Simuloi boilerin jäähtyminen
-                boiler.cool_down(3)
+                # Simuloi boilerin jäähtyminen # Cool down the virtual boiler
+                boiler.cooldown(3)
                 
-                # Hae switch_water arvo oliosta
-                switch_water = brew_settings.get_water_switch_state()
+                # Hae switch_water arvo oliosta # Get brew switch state from the object
+                switch_water = brew_data.get_water_switch_state()
                 
-                # Aseta releet relay_heater ja relay_pump arvoon 1
+                # Aseta releet relay_heater arvoon 1 # Start heating the boiler
                 relay_heater.value(1)
+                
+                #Aseta releet relay_pump arvoon 1 # Start the pump
                 relay_pump.value(1)
                 
-                # Aseta viive: 1s.
+                # Aseta viive: 1s. # Set delay for 1 second
                 time.sleep(1)
                 
-                # Jos switch_water arvo on 0: aseta relay_pump ja relay_heater arvoon 0 ja riko vesiluuppi
-                if not switch_water: #.value() == 0:
-                    relay_pump.value(0)
+                # Jos switch_water arvo on 0 # If water switch is off
+                if not switch_water:
+                # if switch_water.value() == 0: (use when connected to hardware)
+                    
+                    # Aseta releet relay_heater arvoon 1 # Stop heating the boiler
                     relay_heater.value(0)
+                    
+                    #Aseta releet relay_pump arvoon 1 # Stop the pump
+                    relay_pump.value(0)
+                    
+                    # Break the loop
                     break
         
 
-    # --- Höyrystystila --- #######################################korjausta nimeämiseen
+    # --- STEAM JA BREW LÄMPÖTILAT # --- TEMPERATURE MODE ---
         
-        # Jos switch_steam arvo on 0, aseta target_temperature arvoon
-        # brew_temperature muussa tapauksessa arvoon steam_temperature
-
+        # Jos steam_switch on arvossa 1 aseta target_temperature aroksi steam_temperature # If steam switch is off: set brewing temperature as a target temperature
+        if not switch_steam:
+        #if switch_steam.value() == 0: # (to be used when connected to hardware)
+            target_temperature = brew_temperature     
         
-        if not switch_steam: #.value() == 0:
-            target_temperature = brew_temperature           
-            #brew_settings.set_mode("Idle")
+        # Muussa tapauksessa aseta target_temperature arvoon brewing_temperature # Otherwise set steam temperature as a target temperature
         else:
             target_temperature = steam_temperature
-            #brew_settings.set_mode("Steam")
         
-        if target_temperature > boiler_temperature +1 #################################### TÄSSÄ ;EMMÄÄ
+        # Jos kattila on yli asteen kylmempi kuin tavoite lämpötila aseta mode arvoksi "Heating" # If boiler is at least 1 degree celsius lower than target temperature
+        if boiler_temperature < target_temperature -1:
+                
+                # Set mode to "Heating"
+                brew_data.set_mode("Heating")
         
-    # --- Lämmitysreleen ja virtuaali kattilan säätely ---
+        # Jos kattila on yli asteen kuumempi kuin tavoitelämpotila aseta mode arvoksi "Cooling" # Otherwise if target temperature is at leas 1 degree celsius warmer than target temperature
+        elif boiler_temperature >  target_temperature +1:
+            
+            # Set mode to "Cooling down"
+            brew_data.set_mode("Cooling down")
         
-        # Jos lämpötiola on pienempi kuin tavoitelämpötila - lämpenemisnopeus + asetettu bias
-        if (boiler_temperature < (target_temperature - abs(heating_speed) + bias)):
-            
-            # Aseta relay_heater arvoon 1
-            relay_heater.value(1)
-            
-            # Lämmitä virtuaalikattilaa
-            boiler.heat_up()
-            
-        # Muussa tapauksessa
+        # Jos kattilan lämpötila arvossa target_temperature # Otherwise
         else:
             
-            # Aseta relay_heater arvoon 0
+            # Jos target_temperature on sama kuin brew_temperature aseta mode arvoksi "Brew standby" # If target temperature is same as brewing temperature set mode to "Brew standby"
+            if target_temperature == brew_temperature:
+                brew_data.set_mode("Brew standby")
+            
+            # Muussa tapauksessa aseta mode arvoksi "Steam standby" # Otherwise set mode to "Steam standby"
+            else:
+                brew_data.set_mode("Steam standby")
+                 
+        
+    # --- LÄMMÖNSÄÄTELY --- # --- THERMOSTAT ---
+        
+        # Jos lämpötiola on pienempi kuin tavoitelämpötila - lämpenemisnopeus + asetettu bias # If boiler temperature is lower than target temperature - heating speed + bias
+        if (boiler_temperature < (target_temperature - abs(heating_speed) + bias)):
+            
+            # Aseta relay_heater arvoon 1 # Start heating the boiler
+            relay_heater.value(1)
+            
+            # Lämmitä virtuaalikattilaa # Heat the virtual boiler
+            boiler.heat_up()
+            
+        # Muussa tapauksessa # Otherwise
+        else:
+            
+            # Aseta relay_heater arvoon 0 # Stop heating the boiler
             relay_heater.value(0)
             
-            # Jäähdytä virtuaalikattilaa
+            # Jäähdytä virtuaalikattilaa # Cool down the virtual boiler
             boiler.cooldown()
         
-        # Tulosta metriikat
-        print_metrics(lock_printer, brew_settings, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump)
+        # Tulosta numeriset arvot # Print essential values
+        print_values(lock_printer, brew_data, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when not connected to harware)
+        # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
         
-        # Tee viive
-        utime.sleep_ms(1000)
+        # Tee viive # Set up delay 1 second
+        time.sleep(1)
 
 
-# Luo lock_printer
+# Luo sensori # Create and define temperature sensor
+sensor = Sensor(max31865, _thread, Pin)
+
+# Luo lock_printer # Create and define lock printer for printing with both threads without the risk of collision
 lock_printer = LockPrinter(_thread)
 
-# Luo VirtualBoiler olio
+# Luo VirtualBoiler olio # Create virtual boiler for demostrating purposes
 boiler = VirtualBoiler(_thread)
 
-# Luo brew_settings olio
-brew_settings = BrewSettings(utime, _thread)
+# Luo brew_data olio # Create data store object for threads to share data
+brew_data = BrewData(_thread)
 
-# Käynnistä säikeet
-_thread.start_new_thread(thread_harware, ())
-thread_ui()
+# Käynnistä säikeet # Start the threads
+_thread.start_new_thread(_threadharware, ())
+_threadui()
 
 

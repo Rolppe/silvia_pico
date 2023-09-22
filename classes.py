@@ -1,19 +1,20 @@
-# Luokka joka tekee vuorottaa säikeiden tulostukset
+# Class that gives threads turns on printing to avoid collision
 class LockPrinter:
-    def __init__(self, _threadmodule):        
-        self.lock_print = _threadmodule.allocate_lock()
+    def __init__(self, _thread):        
+        self.lock_print = _thread.allocate_lock()
 
-    # Funktio tulostukseen
+    # Function for printing
     def print(self, first_parameter, second_parameter=""):
         self.lock_print.acquire()
         print(first_parameter, second_parameter)
         self.lock_print.release()
 
-# Luokka joka sisältää datan mikä liikkuu säikeiden välillä
+
+# Class to share data between the cores
 class BrewData:
-    def __init__(self, _threadmodule):
-        self.lock = _threadmodule.allocate_lock()
-        self._threadmodule = _threadmodule
+    def __init__(self, _thread):
+        self.lock = _thread.allocate_lock()
+        self._thread = _thread
         self.brew_switch_state = False
         self.steam_switch_state = False
         self.water_switch_state = False
@@ -28,14 +29,14 @@ class BrewData:
         self.pre_heat_time = 0
         self.mode = ""
     
-    # Funktio mode tilan asettamiseen
+    # Function to set mode value
     def set_mode(self, mode):
         self.lock.acquire()
         self.mode = mode
         self.lock.release()
     
-    # Funktio uuttoasetusten asettamiseen
-    def set_static_values(self, brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time):
+    # Function to set brew settings
+    def set_settings(self, brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time):
         self.lock.acquire()
         self.brew_temperature = brew_temperature
         self.steam_temperature = steam_temperature
@@ -45,7 +46,7 @@ class BrewData:
         self.setting_changed = True
         self.lock.release()
         
-    # Funktio kytkimien arvon asettamiseen
+    # Function for set the states of the switches
     def set_switches_state(self, brew_switch_state, steam_switch_state, water_switch_state):
         self.lock.acquire()
         self.brew_switch_state = brew_switch_state
@@ -53,28 +54,28 @@ class BrewData:
         self.water_switch_state = water_switch_state
         self.lock.release()
     
-    # Funktio pre-infusion ajan asettamiseen
+    # Function for setting preinfusion time
     def set_pre_infusion_time(self, time):
         self.lock.acquire()
         self.pre_infusion_time = time
         self.setting_changed = True
         self.lock.release()
         
-    # Funktio uuttolämpötilan asettamiseen
+    # Function for setting brew temperature
     def set_brew_temperature(self, temperature):
         self.lock.acquire()
         self.brew_temperature = temperature
         self.setting_changed = True
         self.lock.release()
     
-    # Funktio mode tilan hakemiseen
+    # Function to get mode value
     def get_mode(self):
         self.lock.acquire()
         mode = self.mode
         self.lock.release()
         return mode
     
-    # Funktio uuttoasetusten hakemiseen
+    # Function to get brew settings
     def get_settings(self):
         self.lock.acquire()
         brew_temperature = self.brew_temperature
@@ -85,7 +86,7 @@ class BrewData:
         self.lock.release()
         return brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time
     
-    # Funktio kytkimien asennon hakemiseen
+    # Function to get the states of the switches
     def get_switches_state(self):
         self.lock.acquire()
         brew_switch_state = self.brew_switch_state
@@ -94,43 +95,35 @@ class BrewData:
         self.lock.release()
         return brew_switch_state, steam_switch_state, water_switch_state
     
-    # Funktio pre-infuusio ajan hakemiseen
+    # Function to get pre-infusion time
     def get_pre_infusion_time(self):
         self.lock.acquire()
         time = self.pre_infusion_time
         self.lock.release()
         return time
     
-    # Funktio uuttolämpötilan hakemiseen
+    # Function to get brew temperature
     def get_brew_temperature(self):
         self.lock.acquire()
         brew_temperature = self.brew_temperature
         self.lock.release()
         return brew_temperature
-
-    # Funktio kytkinten  hakemiseen
-#     def get_changed_state(self):
-#         self.lock.acquire()
-#         setting_changed = self.setting_changed
-#         self.setting_changed = False
-#         self.lock.release()
-#         return setting_changed
     
-    # Funktio uutto-kytkimen arvon hakemiseen
+    # Function to get state of the brew switch
     def get_brew_switch_state(self):
         self.lock.acquire()
         brew_switch_state = self.brew_switch_state
         self.lock.release()
         return brew_switch_state
     
-    # Funktio vesi-kytkimen arvon hakemiseen
+    # Function to get the state of the brew switch
     def get_water_switch_state(self):
         self.lock.acquire()
         water_switch_state = self.water_switch_state
         self.lock.release()
         return water_switch_state
     
-    # Funktio höyry-kytkimen hakemiseen
+    # Function to get the state of the steam switch
     def get_steam_switch_state(self):
         self.lock.acquire()
         steam_switch_state = self.steam_switch_state
@@ -138,50 +131,50 @@ class BrewData:
         return steam_switch_state
     
 
-# Luokka joka toimii virtuaalisena lämmitys-kattilana
+# Class that works as a virtual boiler
 class VirtualBoiler:
-    def __init__(self, _threadmodule):
-        self.lock = _threadmodule.allocate_lock()
-        self.temperature = 70
+    def __init__(self, _thread):
+        self.lock = _thread.allocate_lock()
+        self.temperature = 90
         self.heating_speed = 0
     
-    # Funktio kattilan lämmittämiseen
+    # Function to heat boiler
     def heat_up(self, amount = 1):
         self.lock.acquire()
         heating_speed = self.heating_speed
         temperature = self.temperature
         
-        # lisää lämpötilaan muutos
-        self.temperature = round(temperature + heating_speed, 1)
+        # Add a temperature chanche to the temperature
+        self.temperature = round(temperature + heating_speed, 2)
         
-        # Jos muutos nopeus on alle 1 lisää muutosnopeutta
+        # If heating speed is less than 1: increase heating speed
         if heating_speed < 1:
             self.heating_speed += 0.2 * amount
         self.lock.release()
     
-    # Funktio kattilan jäähdyttämiseen
+    # Function for fooling the boiler
     def cooldown(self, amount = 1):
         self.lock.acquire()
         heating_speed = self.heating_speed
         temperature = self.temperature
         
-        # Lisää muutosnopeus lämpötilaan
+        # Add a temperature change to the temperature
         self.temperature = temperature + heating_speed
         
-        # Jos muutosnopeus on yli -0.2 vähennä muutos nopeutta 
+        # If temperature chanche speed is higher than -0.2: lover heating speed
         if heating_speed > -0.2:
             self.heating_speed -= 0.1 * amount
         self.lock.release()
         
-    # Funktio Lämpötilan hakemiseen
+    # Function to get temperature
     def get_temperature(self):
         self.lock.acquire()
-        temperature = round(self.temperature, 1)
+        temperature = round(self.temperature, 2)
         self.lock.release()
         return temperature
     
     
-# Luokka kattilan lämmitysnopeuden laskemiseen
+# Class to calculate heating speed
 class HeatingSpeedCalculator:
     def __init__(self, utime_module, heating_speed_multiplier):
         #self.acation = 0
@@ -190,38 +183,38 @@ class HeatingSpeedCalculator:
         self.time_start = self.utime.ticks_ms()
         self.heating_speed_multiplier = heating_speed_multiplier
    
-    # Funktio lämmitysnopeuden laskemiseen
+    # Function to calculate heating speed
     def get_heating_speed(self, temperature_now):
         
-        # Hae nykyinen aika
+        # Get time now
         time_now = self.utime.ticks_ms()
         
-        # Laske aika aloituspisteestä tähän hetkeen
+        # Calculate time between now and starting point
         time_between = self.utime.ticks_diff(time_now, self.time_start)
         
-        # Aseta nykyinen aika aloitusajaksi
+        # Set time now as start time
         self.time_start = time_now
         
-        # Laske lämpötilamuutos aloitus lämpötilasta tämän hetken lämpötilaan
+        # Calculate temperature change between now and starting point
         temperature_between = temperature_now - self.temperature_begin
         
-        # Aseta tämän hetkinen lämpötila aloituslämpötilaksi
+        # Set temperature now to start temperature
         self.temperature_begin = temperature_now
         
-        # Laske lämpenemisnopeus
+        # Calculate heating speed
         self.heating_speed = temperature_between / time_between * 10000 * self.heating_speed_multiplier
         
-        # Pyöristä lämpötila nopeus
-        heating_speed = round(self.heating_speed, 1)
+        # Round heating speed
+        heating_speed = round(self.heating_speed, 2)
         
-        # Poista aloituspiikki lämpötilan muutosnopeudesta
+        # Remove initial spike from temperature change speed
         if heating_speed > 100:
             heating_speed = 0
             
         return heating_speed
     
 
-# Luokka lämpötila sensorin lukemiseen
+# Class for reading sensor temperature
 class Sensor:
     def __init__(self, max31865, _thread, pin_module):
         self.lock = _thread.allocate_lock()
@@ -230,20 +223,20 @@ class Sensor:
             pin_sck = 6, pin_mosi = 3, pin_miso = 4, pin_cs = 5
             )
         
-    # Funktio lämpötilan hakemiseen sensorilta
+    # Function to get temperature from sensor
     def read_temperature(self):
         
-        # Laske ja palauta keskiarvo 6 peräkkäisestä mittauksesta välttääksesi kohinaa
-        # Luo taulukko lämpötiloille
+        # Get 7 samples of temperature and calculate average to avoid the noise
+        # Create an array for temperature samples
         temps = []        
         self.lock.acquire()
         
-        # Täytä taulukkoon 7 lämpötilaa
+        # Get 7 temperature samples to array
         for i in range(7):
             temps.append(self.sensor.temperature)
         self.lock.release()
         
-        # Laske lämpötilojen keskiarvo
-        temperature = round((sum(temps) / len(temps)), 1)
+        # Calculate temperature average
+        temperature = round((sum(temps) / len(temps)), 2)
     
         return temperature

@@ -1,4 +1,3 @@
-import time
 import _thread
 import utime
 import json
@@ -16,10 +15,10 @@ from secrets import ssid, password
 def _threadui():
 
     # Create WiFi connection
-    set_station(time, network, ssid, password, lock_printer)
+    set_station(utime, network, ssid, password, lock_printer)
     
     # Create Socket
-    s = set_socket(socket, time, lock_printer)
+    s = set_socket(socket, utime, lock_printer)
     
 # --- MAIN LOOP --- 
     while True:
@@ -27,7 +26,7 @@ def _threadui():
         # Get the state of the switches
         brew_switch_state, steam_switch_state, water_switch_state = brew_data.get_switches_state()
         
-        Set switches changed flag to False
+        # Set switches changed flag to False
         switch_changed = False
         
         # Accept incoming communications
@@ -100,7 +99,7 @@ def _threadui():
         conn = None
             
         # Set up small delay before next handling
-        time.sleep(1)
+        utime.sleep(1)
         
 ###################################################################################
 
@@ -167,7 +166,7 @@ def _threadharware():
             # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
             
             # Aseta viive 1s. # Set up 1 second delay (to be reduced to 0.1 seconds when connected to hardware)
-            time.sleep(1)
+            utime.sleep(1)
             
             # Get the boiler temperature
             boiler_temperature = boiler.get_temperature() # (when not connected to hardware)
@@ -240,7 +239,7 @@ def _threadharware():
                     # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
                 
                     # Set delay 1 second
-                    time.sleep(1)
+                    utime.sleep(1)
             
             # Else stop heating the boiler
             else:
@@ -255,7 +254,7 @@ def _threadharware():
                 # Start the pump
                 relay_pump.value(1)
                 
-                # If there is pre heat before (optional) pre-infusion and brew
+                # If pre-heat time matches to the time left with the preinfusion
                 if (pre_heat_time_on_pre_infusion == pre_infusion_time - x):
                     
                     # Start pre-heating the boiler
@@ -284,7 +283,7 @@ def _threadharware():
                 # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
                 
                 # Set delay 0.5 seconds. this needs to be adjusted for suitable pressure when connected to hardware
-                time.sleep(0.5)
+                utime.sleep(0.5)
                 
                 # Stop the pump
                 relay_pump.value(0)
@@ -294,7 +293,7 @@ def _threadharware():
                 # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
                                 
                 ## Set delay 0.5 seconds. this needs to be adjusted for suitable pressure when connected to hardware
-                time.sleep(0.5)
+                utime.sleep(0.5)
             
             # Start heating the boiler for brewing
             relay_heater.value(1)
@@ -324,7 +323,7 @@ def _threadharware():
                 boiler.cooldown()
                 
                  # Set delay 1 second (decrease as fit when connected to hardware)
-                time.sleep(1)
+                utime.sleep(1)
                 
                 # Add 1 to brewing time counter
                 counter_brewing_time += 1
@@ -358,7 +357,7 @@ def _threadharware():
                         # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
                         
                          # Set delay for 1 second
-                        time.sleep(1)
+                        utime.sleep(1)
                     
                     # Release brewing pressure
                     relay_solenoid.value(0)
@@ -403,7 +402,7 @@ def _threadharware():
                 relay_pump.value(1)
                 
                 # Set delay for 1 second
-                time.sleep(1)
+                utime.sleep(1)
                 
                 # If water switch is off
                 if not switch_water: # (when hardware is not connected)
@@ -462,7 +461,7 @@ def _threadharware():
             # Start heating the boiler
             relay_heater.value(1)
             
-            ## Heat the virtual boiler
+            # Heat the virtual boiler
             boiler.heat_up()
             
         # Otherwise
@@ -479,7 +478,7 @@ def _threadharware():
         # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
         
         # Set up delay 1 second (reduced to 0.1 when connected to hardware)
-        time.sleep(1)
+        utime.sleep(1)
 
 
 # Create and define temperature sensor

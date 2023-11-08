@@ -163,17 +163,12 @@ def response_HTML(brew_data):
     # Get the states of the switches from brew_data object
     brew_switch_state, steam_switch_state, water_switch_state = brew_data.get_switches_state()
 
-    # If boiler is on quick heat-up mode, color buttons as grey
-    if mode == "Quick heat-up start":
-        brew_switch_color = "gray"
-        steam_switch_color = "gray"
-        water_switch_color = "gray"
+
     
-    # Otherwise as green if off and red if on
-    else:
-        brew_switch_color = 'red' if brew_switch_state else 'green'
-        steam_switch_color = 'red' if steam_switch_state else 'green'
-        water_switch_color = 'red' if water_switch_state else 'green'
+    # Button color is green if off and red if on
+    brew_switch_color = 'red' if brew_switch_state else 'green'
+    steam_switch_color = 'red' if steam_switch_state else 'green'
+    water_switch_color = 'red' if water_switch_state else 'green'
     
     # Return HTML
     return f"""HTTP/1.1 200 OK

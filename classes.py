@@ -177,7 +177,6 @@ class VirtualBoiler:
 # Class to calculate heating speed
 class HeatingSpeedCalculator:
     def __init__(self, utime_module, heating_speed_multiplier):
-        #self.acation = 0
         self.temperature_begin = 0
         self.utime = utime_module
         self.time_start = self.utime.ticks_ms()

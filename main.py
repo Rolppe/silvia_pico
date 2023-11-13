@@ -303,13 +303,6 @@ def _threadharware():
         
             while True:
 
-                # Get the boiler temperature
-                boiler_temperature = boiler.get_temperature() # (when not connected to hardware)
-                # boiler_temperature = sensor.read_temperature() (when connected on hardware)
-                
-                # Get calculated heating speed
-                heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature)
-                
                 # Set mode to "Brew"
                 brew_data.set_mode("Brew " + str(counter_brewing_time) + "s.")
                 
@@ -323,6 +316,13 @@ def _threadharware():
                  # Set delay 1 second (decrease as fit when connected to hardware)
                 utime.sleep(1)
                 
+                # Get the boiler temperature
+                boiler_temperature = boiler.get_temperature() # (when not connected to hardware)
+                # boiler_temperature = sensor.read_temperature() (when connected on hardware)
+                
+                # Get calculated heating speed
+                heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature)
+
                 # Add 1 to brewing time counter
                 counter_brewing_time += 1
                 
@@ -387,13 +387,6 @@ def _threadharware():
             # Water loop
             while True:
                 
-                # Get the boiler temperature
-                boiler_temperature = boiler.get_temperature() # (when not connected to hardware)
-                # boiler_temperature = sensor.read_temperature (when connected on hardware)
-                
-                # Get calculated heating speed
-                heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature)
-                
                 # Set mode to "Brew"
                 brew_data.set_mode("Water " + str(counter_water_time) + "s.")
                 
@@ -412,6 +405,13 @@ def _threadharware():
                 
                 # Set delay for 1 second
                 utime.sleep(1)
+                
+                # Get the boiler temperature
+                boiler_temperature = boiler.get_temperature() # (when not connected to hardware)
+                # boiler_temperature = sensor.read_temperature (when connected on hardware)
+                
+                # Get calculated heating speed
+                heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature)
                 
                 # If water switch is off
                 if not switch_water: # (when hardware is not connected)

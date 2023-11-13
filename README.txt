@@ -1,9 +1,6 @@
 WiFi connection instructions
 
-1. There is file called "rename_this_as_secrets.py" 
-Rename this file as "secrets.py
-
-2. There is following text in file:
+1. There is following text in secrets.py file:
  
 ssid = 'your WiFi Id here'
 password = 'your WiFi password here'
@@ -18,8 +15,8 @@ Example:
 ssid = 'myWifi'
 password = 'password123'
 
-3. Save secrets.py
+2. Save secrets.py
 
-4. While pico is running, go to address: 
+3. While pico is running, go to address: 
 http://192.168.0.99/ with your web browser. 
 

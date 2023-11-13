@@ -269,7 +269,7 @@ def _threadharware():
                 
                 # Else set mode to "Pre-infusion + Pre-heat"
                 else:
-                    brew_data.set_mode( "Pre-heat "+ str(x + 1 + pre_heat_time_before_pre_infusion) +"s. Pre-infusion " + str(x + 1)+ "s.")
+                    brew_data.set_mode( "Pre-heat "+ str(pre_heat_time_before_pre_infusion + x + 1)+ "s. " + "Pre-infusion " + str(x + 1)+ "s.")
                     
                     # Cool down the virtual boiler
                     boiler.cooldown(0.5)
@@ -372,12 +372,19 @@ def _threadharware():
         if switch_water: # (when not connected to hardware)
         # if switch_water.value(): # (when connected to harware)
             
-            # Set mode to water
-            brew_data.set_mode("Water")
+            # Set counter for water mode
+            counter_water_time = 0
             
             # Print essential values
             print_values(lock_printer, brew_data, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when not connected to harware)
             # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
+            
+            # Start heating the boiler
+            relay_heater.value(1)
+            
+            # Start the pump
+            relay_pump.value(1)
+            
             
             # Water loop
             while True:
@@ -389,17 +396,21 @@ def _threadharware():
                 # Get calculated heating speed
                 heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature)
                 
+                # Set mode to "Brew"
+                brew_data.set_mode("Water " + str(counter_water_time) + "s.")
+                
+                # Print essential values
+                print_values(lock_printer, brew_data, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when not connected to harware)
+                # print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump) # (when connected to hardware)
+                
                 # Cool down the virtual boiler
                 boiler.cooldown(3)
                 
                 # Get brew switch state from the brew_data object
                 switch_water = brew_data.get_water_switch_state()
                 
-                # Start heating the boiler
-                relay_heater.value(1)
-                
-                # Start the pump
-                relay_pump.value(1)
+                # Add to water counter
+                counter_water_time +=1
                 
                 # Set delay for 1 second
                 utime.sleep(1)

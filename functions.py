@@ -181,13 +181,13 @@ Content-type:text/html
   <body>
     <h1>Brewing setup</h1>
     <form action="/set_value" method="get">
-      Brewing temperature (&#8451;): <input type="text" name="brew_temperature" value = "{brew_temperature}">
+      Brewing temperature (&#8451;): <input type="number" name="brew_temperature" value = "{brew_temperature}">
       <br><br>
-      Steam temperature (&#8451;): <input type="text" name="steam_temperature" value = "{steam_temperature}">
+      Steam temperature (&#8451;): <input type="number" name="steam_temperature" value = "{steam_temperature}">
       <br><br>
-      Pre-infusion time (s): <input type="text" name="pre_infusion_time" value = "{pre_infusion_time}">
+      Pre-infusion time (s): <input type="number" name="pre_infusion_time" value = "{pre_infusion_time}">
       <br><br>
-      Pre-heat time (s): <input type="text" name="pre_heat_time" value = "{pre_heat_time}">
+      Pre-heat time (s): <input type="number" name="pre_heat_time" value = "{pre_heat_time}">
       <br><br>
       Pressure soft-release time (s): <input type="number" name="pressure_soft_release_time" value = "{pressure_soft_release_time}">
       <br><br>

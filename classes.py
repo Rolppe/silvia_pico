@@ -23,8 +23,8 @@ class BrewData:
         self.relay_pump_value = 0
         self.setting_changed = False
         self.pre_infusion_time = 0
-        self.brew_temperature = 20
-        self.steam_temperature = 50
+        self.brew_temperature = 100
+        self.steam_temperature = 130
         self.pressure_soft_release_time = 0
         self.pre_heat_time = 0
         self.mode = ""
@@ -135,7 +135,7 @@ class BrewData:
 class VirtualBoiler:
     def __init__(self, _thread):
         self.lock = _thread.allocate_lock()
-        self.temperature = 90
+        self.temperature = 20
         self.heating_speed = 0
     
     # Function to heat boiler
@@ -177,7 +177,7 @@ class VirtualBoiler:
 # Class to calculate heating speed
 class HeatingSpeedCalculator:
     def __init__(self, utime_module, heating_speed_multiplier):
-        self.temperature_begin = 0
+        self.temperature_begin = 20
         self.utime = utime_module
         self.time_start = self.utime.ticks_ms()
         self.heating_speed_multiplier = heating_speed_multiplier
@@ -187,6 +187,8 @@ class HeatingSpeedCalculator:
         
         # Get time now
         time_now = self.utime.ticks_ms()
+        
+        print("Now" + str(time_now))
         
         # Calculate time between now and starting point
         time_between = self.utime.ticks_diff(time_now, self.time_start)

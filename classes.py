@@ -135,7 +135,7 @@ class BrewData:
 class VirtualBoiler:
     def __init__(self, _thread):
         self.lock = _thread.allocate_lock()
-        self.temperature = 20
+        self.temperature = 60
         self.heating_speed = 0
     
     # Function to heat boiler
@@ -187,8 +187,6 @@ class HeatingSpeedCalculator:
         
         # Get time now
         time_now = self.utime.ticks_ms()
-        
-        print("Now" + str(time_now))
         
         # Calculate time between now and starting point
         time_between = self.utime.ticks_diff(time_now, self.time_start)

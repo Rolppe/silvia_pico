@@ -205,13 +205,11 @@ def _threadharware():
             # Calulate pre-heat time before pre-infusion
             pre_heat_time_before_pre_infusion = pre_heat_time - pre_infusion_time
             
-            # If pre-heat time before preinfusion is negative: set it zero
-            if pre_heat_time_before_pre_infusion < 0:
-                pre_heat_time_before_pre_infusion = 0
-            
             # Calculate pre-heating time for pre-infusion
-            pre_heat_time_on_pre_infusion = pre_heat_time - pre_heat_time_before_pre_infusion #
-                        
+            if pre_heat_time_before_pre_infusion > 0:
+                pre_heat_time_on_pre_infusion = pre_heat_time - pre_heat_time_before_pre_infusion #
+            else:
+                pre_heat_time_on_pre_infusion = pre_heat_time
                         
         # --- Pre-heat ---
         

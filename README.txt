@@ -20,3 +20,6 @@ password = 'password123'
 
 3. Save secrets.py
 
+4. While pico is running, go to address: 
+http://192.168.0.99/ with your web browser. 
+

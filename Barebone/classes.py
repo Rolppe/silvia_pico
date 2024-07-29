@@ -217,7 +217,7 @@ class HeatingSpeedCalculator:
 class Sensor:
     def __init__(self, max31865, pin_module):
         self.sensor = max31865.MAX31865(
-            wires = 3, rtd_nominal = 100, ref_resistor = 430,
+            wires = 2, rtd_nominal = 100, ref_resistor = 430,
             pin_sck = 6, pin_mosi = 3, pin_miso = 4, pin_cs = 5
             )
         

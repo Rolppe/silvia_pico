@@ -1,11 +1,10 @@
 # Function for printing information
-def print_values(lock_printer, brew_data, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump): # (when not connected to harware)
-# def print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump): # (when connected to harware)
-
-    
+# def print_values(lock_printer, brew_data, boiler, heating_speed, relay_heater, relay_solenoid, relay_pump): # Virtual setup
+def print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump): # Hardware setup ------maybe import switches
+ 
     # Get boiler temperature
-    boiler_temperature = boiler.get_temperature() # (when not connected to hardware)
-    # boiler_temperature = sensor.get_temperature() # (when connected to hardware)
+    # boiler_temperature = boiler.get_temperature() # Virtual setup
+    boiler_temperature = sensor.read_temperature() # Hardware setup 
     
     # Get mode from object
     mode = brew_data.get_mode()
@@ -14,18 +13,18 @@ def print_values(lock_printer, brew_data, boiler, heating_speed, relay_heater, r
     brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()
     
     # Get the values of the switches from brew_data object
-    switch_brew, switch_steam, switch_water = brew_data.get_switches_state()
+    # switch_brew, switch_steam, switch_water = brew_data.get_switches_state() # Virtual
     
     # Print values
     lock_printer.print("Mode: ", mode)
     lock_printer.print("Boiler temperature: ", boiler_temperature)
     lock_printer.print("heating_speed", heating_speed)
-    lock_printer.print("switch_brew: ", switch_brew) # (when not connected to hardware) 
-    lock_printer.print("switch_water: ", switch_water) # (when not connected to hardware) 
-    lock_printer.print("switch_steam: ", switch_steam) # (when not connected to hardware) 
-    # lock_printer.print("switch_brew: ", switch_brew.value()) # (when connected to hardware) 
-    # lock_printer.print("switch_water: ", switch_water.value()) # (when connected to hardware) 
-    # lock_printer.print("switch_steam: ", switch_steam.value()) # (when connected to hardware) 
+    #lock_printer.print("switch_brew: ", switch_brew) # Virtual setup 
+    #lock_printer.print("switch_water: ", switch_water) # Virtual setup 
+    #lock_printer.print("switch_steam: ", switch_steam) # Virtual setup 
+    # lock_printer.print("switch_brew: ", switch_brew.value()) # Hardware setup  ------------if switches are imported
+    # lock_printer.print("switch_water: ", switch_water.value()) # Hardware setup 
+    # lock_printer.print("switch_steam: ", switch_steam.value()) # Hardware setup 
     lock_printer.print("relay_heater: ", relay_heater.value())
     lock_printer.print("relay_solenoid: ", relay_solenoid.value())
     lock_printer.print("relay_pump: ", relay_pump.value())

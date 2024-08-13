@@ -177,7 +177,7 @@ class VirtualBoiler:
 # Class to calculate heating speed
 class HeatingSpeedCalculator:
     def __init__(self, utime_module, heating_speed_multiplier):
-        self.temperature_begin = 20
+        self.temperature_begin = 20.0
         self.utime = utime_module
         self.time_start = self.utime.ticks_ms()
         self.heating_speed_multiplier = heating_speed_multiplier
@@ -194,6 +194,11 @@ class HeatingSpeedCalculator:
         # Set time now as start time
         self.time_start = time_now
         
+#         print("Type of temperature_now:" +str(type(temperature_now)))     # For testing
+#         print("Type of :" +str(type(self.temperature_begin)))
+#         print("value of temperature_now:" +str(temperature_now))
+#         print("value of :" +str(self.temperature_begin))
+
         # Calculate temperature change between now and starting point
         temperature_between = temperature_now - self.temperature_begin
         
@@ -218,9 +223,13 @@ class Sensor:
     def __init__(self, max31865, _thread, pin_module):
         self.lock = _thread.allocate_lock()
         self.sensor = max31865.MAX31865(
-            wires = 3, rtd_nominal = 100, ref_resistor = 430,
+            wires = 2, rtd_nominal = 1000.0, ref_resistor = 4300.0,
             pin_sck = 6, pin_mosi = 3, pin_miso = 4, pin_cs = 5
             )
+#         self.sensor = max31865.MAX31865(                        # 3 vire setup
+#             wires = 3, rtd_nominal = 100, ref_resistor = 430,
+#             pin_sck = 6, pin_mosi = 3, pin_miso = 4, pin_cs = 5
+#             )
         
     # Function to get temperature from sensor
     def read_temperature(self):

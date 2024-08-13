@@ -5,6 +5,7 @@ import adafruit_max31865 as max31865
 
 from classes import Sensor
 
+sensor = Sensor(max31865, Pin)
 
 
 def _hardware():
@@ -23,9 +24,7 @@ def _hardware():
     target_temperature = 0
     counter_brew_time = 0
     brew_temperature = 30
-    steam_temperature = 32
-    # Get the boiler temperature
-    boiler_temperature = sensor.read_temperature() #(when connected on hardware)
+    steam_temperature = 35
 
 # --- MAIN LOOP ---    
     while True:
@@ -41,9 +40,19 @@ def _hardware():
             
             # Set solenoid to brewing (pressure) mode
             while(switch_brew.value()):
+                relay_heater.value(1)
                 relay_solenoid.value(1)
                 relay_pump.value(1)
-                print("brewing")
+                print("Mode               Brewing")
+                print("relay_heater       " + str(relay_heater.value()))
+                print("relay_solenoid     " + str(relay_solenoid.value()))
+                print("relay_pump         " + str(relay_pump.value()))
+                print("switch_brew        " + str(switch_brew.value()))
+                print("switch_steam       " + str(switch_steam.value()))
+                print("switch_water       " + str(switch_water.value()))
+                print("boiler_temperature " + str(boiler_temperature))
+                print("target_temperature " + str(target_temperature))
+                print()
                 utime.sleep(1)
     
         # If water switch is on
@@ -58,8 +67,16 @@ def _hardware():
                 # Start the pump
                 relay_pump.value(1)
                 
-                print("Water mode")
-                
+                print("Mode               Water")
+                print("relay_heater       " + str(relay_heater.value()))
+                print("relay_solenoid     " + str(relay_solenoid.value()))
+                print("relay_pump         " + str(relay_pump.value()))
+                print("switch_brew        " + str(switch_brew.value()))
+                print("switch_steam       " + str(switch_steam.value()))
+                print("switch_water       " + str(switch_water.value()))
+                print("boiler_temperature " + str(boiler_temperature))
+                print("target_temperature " + str(target_temperature))
+                print()
                 utime.sleep(1)
                 
         # Set relays to default when not brewing or hot watering
@@ -92,17 +109,18 @@ def _hardware():
             relay_heater.value(0)
             print("cooling")
 
-
-        print("relay_heater" + str(relay_heater.value()))
-        print("relay_solenoid" + str(relay_solenoid.value()))
-        print("relay_pump" + str(relay_pump.value()))
-        print("switch_brew" + str(switch_brew.value()))
-        print("switch_steam" + str(switch_steam.value()))
-        print("switch_water" + str(switch_water.value()))
-        print("Boiler temperature" + str(boiler_temperature))
+        print("Mode               Thermostat")
+        print("relay_heater       " + str(relay_heater.value()))
+        print("relay_solenoid     " + str(relay_solenoid.value()))
+        print("relay_pump         " + str(relay_pump.value()))
+        print("switch_brew        " + str(switch_brew.value()))
+        print("switch_steam       " + str(switch_steam.value()))
+        print("switch_water       " + str(switch_water.value()))
+        print("boiler_temperature " + str(boiler_temperature))
+        print("target_temperature " + str(target_temperature))
+        print()
     
     
-sensor = Sensor(max31865, Pin)
 
 _hardware()
 

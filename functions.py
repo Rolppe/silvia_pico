@@ -129,6 +129,9 @@ def set_socket(socket,time_module, lock_printer):
     # Create socket
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     
+    # Clear port
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    
     # Set port to 80
     port = 80
 

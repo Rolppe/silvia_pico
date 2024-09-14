@@ -223,7 +223,7 @@ class Sensor:
     def __init__(self, max31865, _thread, pin_module):
         self.lock = _thread.allocate_lock()
         self.sensor = max31865.MAX31865(
-            wires = 2, rtd_nominal = 1000.0, ref_resistor = 4300.0,
+            wires = 2, rtd_nominal = 100.0, ref_resistor = 430.0,
             pin_sck = 6, pin_mosi = 3, pin_miso = 4, pin_cs = 5
             )
 #         self.sensor = max31865.MAX31865(                        # 3 vire setup
@@ -234,6 +234,7 @@ class Sensor:
     # Function to get temperature from sensor
     def read_temperature(self):
         
+        temperature_bias = 0.0
         # Get 7 samples of temperature and calculate average to avoid the noise
         # Create an array for temperature samples
         temps = []        
@@ -247,4 +248,11 @@ class Sensor:
         # Calculate temperature average
         temperature = round((sum(temps) / len(temps)), 2)
     
+        # Create error handling
+        if temperature < 15:
+            temperature = 150
+            print("Temperature sensor error")
+        
+        # Bias temperature value
+        temperature = temperature + temperature_bias
         return temperature

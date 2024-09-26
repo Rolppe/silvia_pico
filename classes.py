@@ -12,12 +12,12 @@ class LockPrinter:
 
 # Class to share data between the cores
 class BrewData:
-    def __init__(self, _thread):
+    def __init__(self, _thread, brew_switch, steam_switch, water_switch):
         self.lock = _thread.allocate_lock()
         self._thread = _thread
-        self.brew_switch_state = False
-        self.steam_switch_state = False
-        self.water_switch_state = False
+        self.brew_switch = brew_switch
+        self.steam_switch = steam_switch
+        self.water_switch = water_switch
         self.relay_heater_value = 0
         self.relay_solenoid_value = 0
         self.relay_pump_value = 0
@@ -28,6 +28,9 @@ class BrewData:
         self.pressure_soft_release_time = 0
         self.pre_heat_time = 0
         self.mode = ""
+        self.boiler_temperature = 0
+        self.target_temperature = 0
+        self.heating_speed = 0
     
     # Function to set mode value
     def set_mode(self, mode):
@@ -46,12 +49,10 @@ class BrewData:
         self.setting_changed = True
         self.lock.release()
         
-    # Function for set the states of the switches
-    def set_switches_state(self, brew_switch_state, steam_switch_state, water_switch_state):
+    def set_boiler_stats(self, target_temperature, heating_speed):
         self.lock.acquire()
-        self.brew_switch_state = brew_switch_state
-        self.steam_switch_state = steam_switch_state
-        self.water_switch_state = water_switch_state
+        self.target_temperature = target_temperature
+        self.heating_speed = heating_speed
         self.lock.release()
     
     # Function for setting preinfusion time
@@ -68,6 +69,11 @@ class BrewData:
         self.setting_changed = True
         self.lock.release()
     
+    def set_boiler_temperature(self, boiler_temperature):
+        self.lock.acquire()
+        self.boiler_temperature = boiler_temperature
+        self.lock.release()
+        
     # Function to get mode value
     def get_mode(self):
         self.lock.acquire()
@@ -86,15 +92,6 @@ class BrewData:
         self.lock.release()
         return brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time
     
-    # Function to get the states of the switches
-    def get_switches_state(self):
-        self.lock.acquire()
-        brew_switch_state = self.brew_switch_state
-        steam_switch_state = self.steam_switch_state 
-        water_switch_state = self.water_switch_state
-        self.lock.release()
-        return brew_switch_state, steam_switch_state, water_switch_state
-    
     # Function to get pre-infusion time
     def get_pre_infusion_time(self):
         self.lock.acquire()
@@ -109,62 +106,157 @@ class BrewData:
         self.lock.release()
         return brew_temperature
     
+        # Function to get the states of the switches
+    def get_switches_state(self):
+        self.lock.acquire()
+        brew_switch = self.brew_switch
+        steam_switch = self.steam_switch
+        water_switch = self.water_switch
+        self.lock.release()
+        return brew_switch, steam_switch, water_switch
+    
     # Function to get state of the brew switch
     def get_brew_switch_state(self):
         self.lock.acquire()
-        brew_switch_state = self.brew_switch_state
+        brew_switch = self.brew_switch
         self.lock.release()
-        return brew_switch_state
+        return brew_switch
     
     # Function to get the state of the brew switch
     def get_water_switch_state(self):
         self.lock.acquire()
-        water_switch_state = self.water_switch_state
+        water_switch = self.water_switch
         self.lock.release()
-        return water_switch_state
+        return water_switch
     
     # Function to get the state of the steam switch
     def get_steam_switch_state(self):
         self.lock.acquire()
-        steam_switch_state = self.steam_switch_state
+        steam_switch = self.steam_switch
         self.lock.release()
-        return steam_switch_state
-    
+        return steam_switch
 
-# Class that works as a virtual boiler
-class VirtualBoiler:
-    def __init__(self, _thread):
-        self.lock = _thread.allocate_lock()
-        self.temperature = 60
-        self.heating_speed = 0
+    def get_boiler_temperature(self):
+        self.lock.acquire()
+        boiler_temperature = self.boiler_temperature
+        self.lock.release()
+        return boiler_temperature
     
-    # Function to heat boiler
-    def heat_up(self, amount = 1):
+    def get_target_temperature(self):
+        self.lock.acquire()
+        target_temperature = self.target_temperature
+        self.lock.release()
+        return target_temperature
+
+    def get_heating_speed(self):
         self.lock.acquire()
         heating_speed = self.heating_speed
-        temperature = self.temperature
-        
-        # Add a temperature chanche to the temperature
-        self.temperature = round(temperature + heating_speed, 2)
-        
-        # If heating speed is less than 1: increase heating speed
-        if heating_speed < 1:
-            self.heating_speed += 0.2 * amount
         self.lock.release()
+        return heating_speed
     
-    # Function for fooling the boiler
-    def cooldown(self, amount = 1):
+    def get_boiler_stats(self):
         self.lock.acquire()
+        boiler_temperature = self.boiler_temperature
+        brew_temperature = self.brew_temperature
+        steam_temperature = self.steam_temperature
         heating_speed = self.heating_speed
-        temperature = self.temperature
-        
-        # Add a temperature change to the temperature
-        self.temperature = temperature + heating_speed
-        
-        # If temperature chanche speed is higher than -0.2: lover heating speed
-        if heating_speed > -0.2:
-            self.heating_speed -= 0.1 * amount
         self.lock.release()
+        return boiler_temperature, brew_temperature, steam_temperature, heating_speed
+    
+    def get_pre_heat_time(self):
+        self.lock.acquire()
+        pre_heat_time = self.pre_heat_time
+        self.lock.release()
+        return pre_heat_time
+
+    def get_pressure_soft_release_time(self):
+        self.lock.acquire()
+        pressure_soft_release_time = self.pressure_soft_release_time
+        self.lock.release()
+        return pressure_soft_release_time
+        
+class Thermostat:
+    def __init__(self):
+        self.cycle_count = 0
+        
+    def run(self, brew_data, switch_steam, relay_heater):
+        
+        # Get data
+        boiler_temperature, brew_temperature, steam_temperature, heating_speed = brew_data.get_boiler_stats()
+        
+        # If steam switch is off: set brewing temperature as a target temperature
+        if switch_steam.value() == 0:
+            target_temperature = brew_temperature     
+        
+        # Otherwise set steam temperature as a target temperature
+        else:
+            target_temperature = steam_temperature
+        
+        # If boiler is at least 1 degree celsius lower than target temperature
+        if boiler_temperature < target_temperature -1:
+                
+                # Set mode to "Heating"
+                brew_data.set_mode("Heating")
+        
+        # Otherwise if target temperature is at leas 1 degree celsius warmer than target temperature
+        elif boiler_temperature >  target_temperature +1:
+            
+            # Set mode to "Cooling down"
+            brew_data.set_mode("Cooling down")
+        
+        # Otherwise
+        else:
+            
+            # If target temperature is same as brewing temperature set mode to "Brew standby"
+            if target_temperature == brew_temperature:
+                brew_data.set_mode("Brew standby")
+            
+            # Otherwise set mode to "Steam standby"
+            else:
+                brew_data.set_mode("Steam standby") 
+        
+        # If boiler temperature is lower than target temperature - heating speed
+        if (boiler_temperature < (target_temperature - heating_speed)):
+            
+            # Start heating the boiler          
+            if (Thermostat.heat_cycler(self, boiler_temperature, target_temperature)):
+                relay_heater.value(1)
+            else:
+                relay_heater.value(0)
+                
+        # Othervice, stop heating the boiler
+        else:
+            relay_heater.value(0)
+            
+    def heat_cycler(self, temperature, target_temperature):
+        return_bool = False
+        heater_limit = self.cycle_count * 10
+
+        temperature_difference = int((temperature - target_temperature) *20)
+        
+        if (temperature_difference >= 0):
+            print ("tääällä")
+            if (self.cycle_count < 10):
+                return_bool = True
+            else:
+                return_bool = False       
+        
+        else:
+            if (abs(temperature_difference) > heater_limit):
+                return_bool = True
+            else:
+                return_bool = False
+        
+        
+        if (self.cycle_count >= 9):
+            self.cycle_count = 0
+        else:
+            self.cycle_count = self.cycle_count +1
+        
+        if return_bool:
+            return True
+        else:
+            return False
         
     # Function to get temperature
     def get_temperature(self):
@@ -172,15 +264,15 @@ class VirtualBoiler:
         temperature = round(self.temperature, 2)
         self.lock.release()
         return temperature
-    
-    
+
+
 # Class to calculate heating speed
 class HeatingSpeedCalculator:
-    def __init__(self, utime_module, heating_speed_multiplier):
+    def __init__(self, utime_module):
         self.temperature_begin = 20.0
         self.utime = utime_module
         self.time_start = self.utime.ticks_ms()
-        self.heating_speed_multiplier = heating_speed_multiplier
+        #self.heating_speed_multiplier = 0.8
    
     # Function to calculate heating speed
     def get_heating_speed(self, temperature_now):
@@ -206,7 +298,7 @@ class HeatingSpeedCalculator:
         self.temperature_begin = temperature_now
         
         # Calculate heating speed
-        self.heating_speed = temperature_between / time_between * 10000 * self.heating_speed_multiplier
+        self.heating_speed = temperature_between / time_between * 10000 # * self.heating_speed_multiplier
         
         # Round heating speed
         heating_speed = round(self.heating_speed, 2)
@@ -217,20 +309,15 @@ class HeatingSpeedCalculator:
             
         return heating_speed
     
-
 # Class for reading sensor temperature
 class Sensor:
     def __init__(self, max31865, _thread, pin_module):
         self.lock = _thread.allocate_lock()
         self.sensor = max31865.MAX31865(
-            wires = 2, rtd_nominal = 100.0, ref_resistor = 430.0,
+            wires = 3, rtd_nominal = 100.0, ref_resistor = 430.0,
             pin_sck = 6, pin_mosi = 3, pin_miso = 4, pin_cs = 5
             )
-#         self.sensor = max31865.MAX31865(                        # 3 vire setup
-#             wires = 3, rtd_nominal = 100, ref_resistor = 430,
-#             pin_sck = 6, pin_mosi = 3, pin_miso = 4, pin_cs = 5
-#             )
-        
+
     # Function to get temperature from sensor
     def read_temperature(self):
         
@@ -256,3 +343,4 @@ class Sensor:
         # Bias temperature value
         temperature = temperature + temperature_bias
         return temperature
+

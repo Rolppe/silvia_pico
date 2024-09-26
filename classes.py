@@ -54,6 +54,11 @@ class BrewData:
         self.target_temperature = target_temperature
         self.heating_speed = heating_speed
         self.lock.release()
+        
+    def set_heating_speed(self, heating_speed):
+        self.lock.acquire()
+        self.heating_speed = heating_speed
+        self.lock.release()
     
     # Function for setting preinfusion time
     def set_pre_infusion_time(self, time):
@@ -181,8 +186,30 @@ class Thermostat:
         
     def run(self, brew_data, switch_steam, relay_heater):
         
-        # Get data
+        # Get boiler data
         boiler_temperature, brew_temperature, steam_temperature, heating_speed = brew_data.get_boiler_stats()
+        
+        # Get target temperature
+        target_temperature = Thermostat.get_target_temperature(switch_steam, brew_temperature, steam_temperature)
+        
+        # Set heating mode to brew_data
+        Thermostat.set_brew_mode(brew_data, boiler_temperature, target_temperature, brew_temperature)
+
+        # If boiler temperature is lower than target temperature - heating speed
+        if (boiler_temperature < (target_temperature - (heating_speed * 2))):
+            
+            # Start heating the boiler          
+            if (Thermostat.heat_cycler(self, boiler_temperature, target_temperature)):
+                relay_heater.value(1)
+            else:
+                relay_heater.value(0)
+                
+        # Othervice, stop heating the boiler
+        else:
+            relay_heater.value(0)
+    
+    
+    def get_target_temperature(switch_steam,brew_temperature, steam_temperature):
         
         # If steam switch is off: set brewing temperature as a target temperature
         if switch_steam.value() == 0:
@@ -192,7 +219,10 @@ class Thermostat:
         else:
             target_temperature = steam_temperature
         
-        # If boiler is at least 1 degree celsius lower than target temperature
+        return target_temperature  
+      
+    def set_brew_mode(brew_data, boiler_temperature, target_temperature, brew_temperature):
+            # If boiler is at least 1 degree celsius lower than target temperature
         if boiler_temperature < target_temperature -1:
                 
                 # Set mode to "Heating"
@@ -214,45 +244,26 @@ class Thermostat:
             # Otherwise set mode to "Steam standby"
             else:
                 brew_data.set_mode("Steam standby") 
-        
-        # If boiler temperature is lower than target temperature - heating speed
-        if (boiler_temperature < (target_temperature - heating_speed)):
-            
-            # Start heating the boiler          
-            if (Thermostat.heat_cycler(self, boiler_temperature, target_temperature)):
-                relay_heater.value(1)
-            else:
-                relay_heater.value(0)
-                
-        # Othervice, stop heating the boiler
-        else:
-            relay_heater.value(0)
             
     def heat_cycler(self, temperature, target_temperature):
         return_bool = False
-        heater_limit = self.cycle_count * 10
-
-        temperature_difference = int((temperature - target_temperature) *20)
+        cycle_count = self.cycle_count
         
-        if (temperature_difference >= 0):
-            print ("tääällä")
-            if (self.cycle_count < 10):
-                return_bool = True
-            else:
-                return_bool = False       
-        
+        # Calculate temperature difference
+        temperature_difference = int((temperature - target_temperature) *100)
+    
+        if (abs(temperature_difference / 5) > cycle_count):
+            return_bool = True
         else:
-            if (abs(temperature_difference) > heater_limit):
-                return_bool = True
-            else:
-                return_bool = False
+            return_bool = False
         
         
-        if (self.cycle_count >= 9):
-            self.cycle_count = 0
+        if (cycle_count >= 90):
+            cycle_count = 0
         else:
-            self.cycle_count = self.cycle_count +1
+            cycle_count = cycle_count +10
         
+        self.cycle_count = cycle_count
         if return_bool:
             return True
         else:
@@ -285,11 +296,6 @@ class HeatingSpeedCalculator:
         
         # Set time now as start time
         self.time_start = time_now
-        
-#         print("Type of temperature_now:" +str(type(temperature_now)))     # For testing
-#         print("Type of :" +str(type(self.temperature_begin)))
-#         print("value of temperature_now:" +str(temperature_now))
-#         print("value of :" +str(self.temperature_begin))
 
         # Calculate temperature change between now and starting point
         temperature_between = temperature_now - self.temperature_begin
@@ -304,7 +310,8 @@ class HeatingSpeedCalculator:
         heating_speed = round(self.heating_speed, 2)
         
         # Remove initial spike from temperature change speed
-        if heating_speed > 100:
+        if heating_speed > 100 or heating_speed < -100:
+            print("nopeus mittauksessa virhe!")
             heating_speed = 0
             
         return heating_speed
@@ -320,23 +327,24 @@ class Sensor:
 
     # Function to get temperature from sensor
     def read_temperature(self):
-        temperature_bias = 0.0
+        temperature_bias = -5.5
         # Get 7 samples of temperature and calculate average to avoid the noise
         # Create an array for temperature samples
-        temps = []        
+        temps = []
+        temp = 0
         #self.lock.acquire()
         # Get 7 temperature samples to array
-        #for i in range(7):
-        #    temps.append(self.sensor.temperature)
+        for i in range(6):
+            temp = self.sensor.temperature
+            while (temp < 15 or temp > 200):
+                print("Temperature sensor error")
+                temp = self.sensor.temperature
+            temps.append(temp)
         #self.lock.release()
 
         # Calculate temperature average
-        temperature = round((self.sensor.temperature), 2)#round((sum(temps) / len(temps)), 2)
-        # Create error handling
-        if temperature < 15:
-            temperature = 150
-            print("Temperature sensor error")
-        
+        temperature = round((sum(temps) / len(temps)), 2)
+        # Create error handling        
         # Bias temperature value
         temperature = temperature + temperature_bias
         return temperature

@@ -120,12 +120,10 @@ def _threadharware():
         brew_data.set_boiler_temperature(boiler_temperature)
 
         # Get calculation of temperature change speed
-        heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature) 
+        heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature)
+        brew_data.set_heating_speed(heating_speed)
         # Set brewing time counter to 0
         counter_brewing_time = 0
-        thermostat = Thermostat()
-
-        
     
     # --- BREW MODE ---
         if switch_brew.value() == 1:

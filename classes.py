@@ -320,21 +320,18 @@ class Sensor:
 
     # Function to get temperature from sensor
     def read_temperature(self):
-        
         temperature_bias = 0.0
         # Get 7 samples of temperature and calculate average to avoid the noise
         # Create an array for temperature samples
         temps = []        
-        self.lock.acquire()
-        
+        #self.lock.acquire()
         # Get 7 temperature samples to array
-        for i in range(7):
-            temps.append(self.sensor.temperature)
-        self.lock.release()
-        
+        #for i in range(7):
+        #    temps.append(self.sensor.temperature)
+        #self.lock.release()
+
         # Calculate temperature average
-        temperature = round((sum(temps) / len(temps)), 2)
-    
+        temperature = round((self.sensor.temperature), 2)#round((sum(temps) / len(temps)), 2)
         # Create error handling
         if temperature < 15:
             temperature = 150

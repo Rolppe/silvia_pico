@@ -115,17 +115,14 @@ def _threadharware():
         
         # Get brew settings from brew_data object
         brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()
-        
         # Get temperature from the boiler
-        brew_data.set_boiler_temperature(sensor.read_temperature())
         boiler_temperature = sensor.read_temperature()
+        brew_data.set_boiler_temperature(boiler_temperature)
 
         # Get calculation of temperature change speed
         heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature) 
-        
         # Set brewing time counter to 0
         counter_brewing_time = 0
-        
         thermostat = Thermostat()
 
         

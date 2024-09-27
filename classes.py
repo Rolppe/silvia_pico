@@ -282,8 +282,8 @@ class HeatingSpeedCalculator:
     def __init__(self, utime_module):
         self.temperature_begin = 20.0
         self.utime = utime_module
-        self.time_start = self.utime.ticks_ms()
-        #self.heating_speed_multiplier = 0.8
+        self.time_start = 0
+        self.first_measure_flag = True
    
     # Function to calculate heating speed
     def get_heating_speed(self, temperature_now):
@@ -309,17 +309,22 @@ class HeatingSpeedCalculator:
         # Round heating speed
         heating_speed = round(self.heating_speed, 2)
         
-        # Remove initial spike from temperature change speed
+        # If first measure: set speed to 0 and reset flag
+        if self.first_measure_flag:
+            self.first_measure_flag = False
+            heating_speed = 0
+            
+        # If value is unacceptale, place error
         if heating_speed > 100 or heating_speed < -100:
             print("nopeus mittauksessa virhe!")
             heating_speed = 0
             
         return heating_speed
-    
+  
+  
 # Class for reading sensor temperature
 class Sensor:
     def __init__(self, max31865, _thread, pin_module):
-        self.lock = _thread.allocate_lock()
         self.sensor = max31865.MAX31865(
             wires = 3, rtd_nominal = 100.0, ref_resistor = 430.0,
             pin_sck = 6, pin_mosi = 3, pin_miso = 4, pin_cs = 5
@@ -327,25 +332,29 @@ class Sensor:
 
     # Function to get temperature from sensor
     def read_temperature(self):
+        
+        # Create value for sifting bias of the temperature
         temperature_bias = -5.5
-        # Get 7 samples of temperature and calculate average to avoid the noise
+        
         # Create an array for temperature samples
-        temps = []
+        temps = []  
+        
+        # Get 7 temperature samples to array and calculate average to avoid the noise
         temp = 0
-        #self.lock.acquire()
-        # Get 7 temperature samples to array
         for i in range(6):
             temp = self.sensor.temperature
             while (temp < 15 or temp > 200):
                 print("Temperature sensor error")
                 temp = self.sensor.temperature
             temps.append(temp)
-        #self.lock.release()
 
         # Calculate temperature average
         temperature = round((sum(temps) / len(temps)), 2)
-        # Create error handling        
+        
+        # Create error handling
+        
         # Bias temperature value
         temperature = temperature + temperature_bias
+        
         return temperature
 

@@ -223,15 +223,4 @@ class Sensor:
         
     # Function to get temperature from sensor
     def read_temperature(self):
-        # Get 7 samples of temperature and calculate average to avoid the noise
-        # Create an array for temperature samples
-        temps = []        
-        
-        # Get 7 temperature samples to array
-        for i in range(7):
-            temps.append(self.sensor.temperature)
-        
-        # Calculate temperature average
-        temperature = round((sum(temps) / len(temps)), 2)
-    
-        return temperature
+        return self.sensor.temperature

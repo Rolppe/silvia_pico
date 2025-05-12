@@ -1,16 +1,6 @@
 This is project is about control system for
 Ranchilio Silvia espresso machine. 
 
-Code can be run on Raspberry Pi Pico W microcontroller
-without connecting to other hardware. Code at this point 
-is for virtualized.
-
-There is commented what changes you need to change to make
-to work with real hardware, but it is not quaranteed to
-work flawlessy quite yet.
-
-
-
 WiFi connection instructions
 
 1. There is following text in secrets.py file:

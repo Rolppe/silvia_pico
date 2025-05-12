@@ -101,15 +101,17 @@ def brew_mode(brew_data, switch_brew, relay_pump, relay_solenoid, relay_heater, 
         ## Set delay 0.5 seconds. this needs to be adjusted for suitable pressure when connected to hardware
         utime.sleep(0.5)
             
+    
+
+# --- Brew loop ---
+        
     # Start heating the boiler for brewing
-    relay_heater.value(1)
+    relay_heater.value(0)
             
     # Start the pump for brewing
     relay_pump.value(1)
 
 
-# --- Brew loop ---
-        
     while True:
 
         # Set mode to "Brew"
@@ -126,6 +128,11 @@ def brew_mode(brew_data, switch_brew, relay_pump, relay_solenoid, relay_heater, 
         counter_brewing_time += 1
         
         print("Brewing " +str(counter_brewing_time)+"s.")
+        
+        # Start heating boiler after some time
+        if counter_brewing_time > 50:
+            relay_heater.value(1)
+            
 
                 
         # If brewing switch is turned off brake loop and make (optional) Pressure soft release

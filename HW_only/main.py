@@ -47,6 +47,48 @@ brew_data.set_mode("idle")
 # Load settings (to brew_data object)
 load_settings(json, brew_data)
 
+# Fast heatup setting on/off
+
+if switch_steam.value():
+    fast_heatup = True
+else:
+    fast_heatup = False
+
+# steam_water_purge = True
+
+if fast_heatup:
+    top_temp = 0
+        
+#     # Fill the boiler
+    relay_pump.value(1)
+    relay_solenoid.value(1)
+    utime.sleep(2)
+    relay_pump.value(0)
+    relay_solenoid.value(0)
+    
+   
+    relay_heater.value(1)
+    while sensor.read_temperature() < 85:
+        utime.sleep(1)
+    relay_heater.value(0)
+    
+    while sensor.read_temperature() < 110:
+        relay_heater.value(1)
+        utime.sleep(1)
+        relay_heater.value(0)
+        utime.sleep(1)
+    while sensor.read_temperature() < 120:
+        relay_heater.value(1)
+        utime.sleep(1)
+        relay_heater.value(0)
+        utime.sleep(2)
+    while sensor.read_temperature() < 125:
+        relay_heater.value(1)
+        utime.sleep(1)
+        relay_heater.value(0)
+        utime.sleep(3)
+            
+        
 
 # --- MAIN LOOP ---    
 while True:
@@ -61,7 +103,13 @@ while True:
     # Get calculation of temperature change speed
     heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature)
     brew_data.set_heating_speed(heating_speed)
-    
+            
+    boiler_temperature = sensor.read_temperature()
+
+
+
+                        
+            
 #     # --- BREW MODE ---
 #     if switch_brew.value() == 1:
 #         brew_mode(brew_data, switch_brew, relay_pump, relay_solenoid, relay_heater, print_values, lock_printer, sensor, heating_speed_calculator)
@@ -70,17 +118,61 @@ while True:
 #     if switch_water.value() == 1:
 #         water_mode(brew_data, switch_water, relay_pump, relay_heater, relay_solenoid, print_values, lock_printer, sensor, heating_speed_calculator)
 
+        
 
 
 
-    if switch_brew.value(): 
+    if switch_brew.value():
+        brew_counter = 0
+        relay_solenoid.value(1)
+        relay_pump.value(1)
+        relay_heater.value(0)
         
         # Set solenoid to brewing (pressure) mode
         while(switch_brew.value()):
-            relay_heater.value(1)
-            relay_solenoid.value(1)
-            relay_pump.value(1)
+            print(1)
+            while(switch_brew.value()):
+                print(2)
 
+                print(str(brew_counter))
+                
+                brew_counter += 1
+
+                if brew_counter < 2000:
+                    print("ali")
+                    relay_heater.value(0)
+                    
+                elif brew_counter < 3000:
+                    print("yli")
+                    relay_heater.value(1)
+                
+                else:
+                    relay_heater.value(0)
+                    brew_counter = 0
+                    
+                
+                
+                
+
+# #             
+#         while switch_brew.value():
+#             start_time = utime.ticks_ms()
+#             while True:
+#                 current_time = utime.ticks_ms()
+#                 elapsed = utime.ticks_diff(current_time, start_time) / 1000  # Muunnetaan sekunneiksi
+#                 if elapsed < total_time:
+#                     if elapsed >= (2 * total_time / 3):
+#                         relay_heater.value(1)  # Lämmitin päälle
+#                     else:
+#                         relay_heater.value(0)  # Lämmitin pois
+#                 else:
+#                     relay_heater.value(0)  # Varmista, että lämmitin on pois syklin lopussa
+#                     break  # Aloita uusi sykli
+#         
+#         relay_pump.value(0)
+#         relay_solenoid.value(0)
+#         relay_heater.value(0)
+        
     # If water switch is on
     if switch_water.value():
      
@@ -97,8 +189,14 @@ while True:
     relay_pump.value(0)
     relay_solenoid.value(0)
     
-    
-
+#     # Blow excess water before steaming
+#     if switch_steam.value() and steam_water_purge:
+#         relay_heater.value(1)
+#         utime_sleep(15)
+#         relay_solenoid.value(1)
+#         utime.sleep(20)
+#         relay_solenoid.value(0)
+#         steam_water_purge = False
 
     
     # --- THERMOSTAT ---      

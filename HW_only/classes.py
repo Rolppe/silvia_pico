@@ -24,7 +24,7 @@ class BrewData:
         self.setting_changed = False
         self.pre_infusion_time = 0
         self.brew_temperature = 97
-        self.steam_temperature = 130
+        self.steam_temperature = 125
         self.pressure_soft_release_time = 0
         self.pre_heat_time = 0
         self.mode = ""
@@ -336,7 +336,7 @@ class Sensor:
     def read_temperature(self):
         
         # Create value for sifting bias of the temperature
-        temperature_bias = -3
+        temperature_bias = -7.5
         
 
         

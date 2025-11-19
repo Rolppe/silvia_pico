@@ -1,7 +1,6 @@
 import os
 import urequests
 import json
-import hashlib
 import machine
 import time
 import network
@@ -13,10 +12,30 @@ default_branch = 'master'
 ignore_files = ['ugit.py', 'secrets.py', '.DS_Store']
 ignore = ignore_files
 giturl = f'https://github.com/{github_user}/{github_repo}'
+commit_url = f'https://api.github.com/repos/{github_user}/{github_repo}/commits/{default_branch}'
 call_trees_url = f'https://api.github.com/repos/{github_user}/{github_repo}/git/trees/{default_branch}?recursive=1'
 raw = f'https://raw.githubusercontent.com/{github_user}/{github_repo}/{default_branch}/'
 
 led = Pin("LED", Pin.OUT)
+
+def get_latest_commit_hash():
+    headers = {'User-Agent': 'ota-pico'}
+    if len(github_token) > 0:
+        headers['authorization'] = f"bearer {github_token}"
+    r = urequests.get(commit_url, headers=headers)
+    data = json.loads(r.content.decode('utf-8'))
+    return data['sha']
+
+def load_local_commit_hash():
+    try:
+        with open('last_commit.txt', 'r') as f:
+            return f.read().strip()
+    except:
+        return None
+
+def save_local_commit_hash(sha):
+    with open('last_commit.txt', 'w') as f:
+        f.write(sha)
 
 def pull(f_path, raw_url):
     print(f'Pulling {f_path} from GitHub')
@@ -32,14 +51,12 @@ def pull(f_path, raw_url):
         print('Virhe.')
 
 def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
-    changed = False
     if not isconnected:
         wlan = wificonnect()
         time.sleep(2)
         ntptime.settime()
     os.chdir('/')
     tree = pull_git_tree()
-    internal_tree = build_internal_tree()
     log = []
     for i in tree['tree']:
         if i['type'] == 'tree':
@@ -48,30 +65,14 @@ def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
             except:
                 pass
         elif i['path'] not in ignore:
-            local_item = next((item for item in internal_tree if item[0] == i['path']), None)
-            if local_item and local_item[1] == i['sha']:
-                internal_tree.remove(local_item)
-            else:
-                t = time.localtime()
-                timestamp = f"{t[0]:04d}/{t[1]:02d}/{t[2]:02d} - {t[3]:02d}:{t[4]:02d}:{t[5]:02d}"
-                if local_item:
-                    os.remove(i['path'])
-                    internal_tree.remove(local_item)
-                    log.append(f'{timestamp} {i["path"]} poistettu ja paivitetty')
-                else:
-                    log.append(f'{timestamp} {i["path"]} paivitetty')
-                pull(i['path'], raw + i['path'])
-                changed = True
-    if len(internal_tree) > 0:
-        for item in internal_tree:
             try:
-                t = time.localtime()
-                timestamp = f"{t[0]:04d}/{t[1]:02d}/{t[2]:02d} - {t[3]:02d}:{t[4]:02d}:{t[5]:02d}"
-                os.remove(item[0])
-                log.append(f'{timestamp} {item[0]} poistettu')
-                changed = True
+                os.remove(i['path'])
             except:
                 pass
+            t = time.localtime()
+            timestamp = f"{t[0]:04d}/{t[1]:02d}/{t[2]:02d} - {t[3]:02d}:{t[4]:02d}:{t[5]:02d}"
+            pull(i['path'], raw + i['path'])
+            log.append(f'{timestamp} {i["path"]} paivitetty')
     logfile = open('ugit_log.py', 'w')
     logfile.write(str(log))
     logfile.close()
@@ -94,45 +95,6 @@ def wificonnect(ssid=ssid, password=password):
         print('Yhdistetty')
     return wlan
 
-def build_internal_tree():
-    internal_tree = []
-    os.chdir('/')
-    for i in os.listdir():
-        add_to_tree(i, internal_tree)
-    return internal_tree
-
-def add_to_tree(dir_item, internal_tree):
-    if is_directory(dir_item):
-        if len(os.listdir(dir_item)) >= 1:
-            os.chdir(dir_item)
-            for i in os.listdir():
-                add_to_tree(i, internal_tree)
-            os.chdir('..')
-    else:
-        if os.getcwd() != '/':
-            subfile_path = os.getcwd() + '/' + dir_item
-        else:
-            subfile_path = dir_item
-        try:
-            internal_tree.append([subfile_path, get_hash(subfile_path)])
-        except:
-            pass
-
-def get_hash(file):
-    with open(file, 'rb') as o_file:
-        r_file = o_file.read()
-        r_file = r_file.replace(b'\r\n', b'\n')  # Normalisoi LF
-        header = b"blob " + str(len(r_file)).encode() + b"\0"
-        sha1obj = hashlib.sha1(header + r_file)
-        return sha1obj.hexdigest()
-
-def is_directory(file):
-    try:
-        stat = os.stat(file)
-        return (stat[0] & 0x4000) != 0
-    except:
-        return False
-
 def pull_git_tree(tree_url=call_trees_url, raw=raw):
     headers = {'User-Agent': 'ota-pico'}
     if len(github_token) > 0:
@@ -140,3 +102,11 @@ def pull_git_tree(tree_url=call_trees_url, raw=raw):
     r = urequests.get(tree_url, headers=headers)
     data = json.loads(r.content.decode('utf-8'))
     return data
+
+latest_hash = get_latest_commit_hash()
+local_hash = load_local_commit_hash()
+if latest_hash != local_hash:
+    pull_all()
+    save_local_commit_hash(latest_hash)
+else:
+    print('Sama versio, ei paivitysta.')

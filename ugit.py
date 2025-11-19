@@ -53,6 +53,36 @@ def pull(f_path, raw_url):
     except:
         print('Virhe.')
 
+def is_dst(t):
+    year, month, day, hour, _, _, _, _ = t
+    # Maaliskuun viimeinen sunnuntai
+    march_last_sunday = 31 - (time.mktime((year, 3, 31, 0, 0, 0, 0, 0)) % 7)
+    # Lokakuun viimeinen sunnuntai
+    oct_last_sunday = 31 - (time.mktime((year, 10, 31, 0, 0, 0, 0, 0)) % 7)
+    
+    if month < 3 or month > 10:
+        return False
+    if month > 3 and month < 10:
+        return True
+    if month == 3:
+        if day < march_last_sunday:
+            return False
+        if day > march_last_sunday:
+            return True
+        return hour >= 1  # Siirtyy klo 3:00 -> 4:00, UTC klo 1:00
+    if month == 10:
+        if day < oct_last_sunday:
+            return True
+        if day > oct_last_sunday:
+            return False
+        return hour < 1  # Siirtyy klo 4:00 -> 3:00, UTC klo 1:00
+
+def get_finland_time():
+    utc = time.localtime()
+    offset = 3 if is_dst(utc) else 2
+    fin_time = time.localtime(time.mktime(utc) + offset * 3600)
+    return fin_time
+
 def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
     if not isconnected:
         wlan = wificonnect()
@@ -77,7 +107,7 @@ def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
                 os.remove(i['path'])
             except:
                 pass
-            t = time.localtime()
+            t = get_finland_time()
             timestamp = f"{t[0]:04d}/{t[1]:02d}/{t[2]:02d} - {t[3]:02d}:{t[4]:02d}:{t[5]:02d}"
             pull(i['path'], raw + i['path'])
             log.append(f'{timestamp} {i["path"]} paivitetty')

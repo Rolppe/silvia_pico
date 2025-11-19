@@ -9,7 +9,7 @@ from machine import Pin
 from secrets import ssid, password, github_user, github_repo, github_token
 
 default_branch = 'master'
-ignore_files = ['secrets.py', '.DS_Store']
+ignore_files = ['ugit.py', 'secrets.py', '.DS_Store']
 ignore = ignore_files
 giturl = f'https://github.com/{github_user}/{github_repo}'
 commit_url = f'https://api.github.com/repos/{github_user}/{github_repo}/commits/{default_branch}'
@@ -78,7 +78,7 @@ def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
             timestamp = f"{t[0]:04d}/{t[1]:02d}/{t[2]:02d} - {t[3]:02d}:{t[4]:02d}:{t[5]:02d}"
             pull(i['path'], raw + i['path'])
             log.append(f'{timestamp} {i["path"]} paivitetty')
-    logfile = open('ugit_log.txt', 'w')
+    logfile = open('ugit_log.py', 'w')
     logfile.write('\n'.join(log))
     logfile.close()
     save_local_commit_hash(latest_hash)

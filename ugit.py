@@ -77,6 +77,29 @@ def get_finland_time():
     fin_time = time.localtime(time.mktime(utc) + offset * 3600)
     return fin_time
 
+def build_internal_paths():
+    internal_paths = []
+    def add_paths(dir_item):
+        if is_directory(dir_item):
+            os.chdir(dir_item)
+            for sub in os.listdir():
+                add_paths(sub)
+            os.chdir('..')
+        else:
+            path = os.getcwd() + '/' + dir_item if os.getcwd() != '/' else dir_item
+            internal_paths.append(path.lstrip('/'))
+    os.chdir('/')
+    for i in os.listdir():
+        add_paths(i)
+    return set(internal_paths)
+
+def is_directory(file):
+    try:
+        stat = os.stat(file)
+        return (stat[0] & 0x4000) != 0
+    except:
+        return False
+
 def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
     if not isconnected:
         wlan = wificonnect()
@@ -88,8 +111,16 @@ def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
         print('Sama versio, ei paivitysta.')
         return
     os.chdir('/')
-    tree = pull_git_tree()
-    for i in tree['tree']:
+    tree_data = pull_git_tree()
+    github_paths = {item['path'] for item in tree_data['tree'] if item['type'] == 'blob'}
+    local_paths = build_internal_paths()
+    for path in list(local_paths):
+        if path not in ignore and path not in github_paths:
+            try:
+                os.remove(path)
+            except:
+                pass
+    for i in tree_data['tree']:
         if i['type'] == 'tree':
             try:
                 os.mkdir(i['path'])

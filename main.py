@@ -41,16 +41,13 @@ relay_heater = Pin(11, Pin.OUT, value = 0)
 relay_solenoid = Pin(12, Pin.OUT, value = 0)
 relay_pump = Pin(13, Pin.OUT, value = 0)
 
-
 # Set mode to idle
 brew_data.set_mode("idle")
 
 # Load settings (to brew_data object)
 load_settings(json, brew_data)
 
-
-
-# Create WiFi connection
+# Connect to Wifi
 set_station(utime, network, ssid, password, lock_printer)
 
 # Create Socket
@@ -101,9 +98,9 @@ def network_settings_api():
 # Fast heatup setting on/off
 
 if switch_steam.value():
-    fast_heatup = True
-else:
     fast_heatup = False
+else:
+    fast_heatup = True
 
 # steam_water_purge = True
 

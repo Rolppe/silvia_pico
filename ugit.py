@@ -9,7 +9,7 @@ from machine import Pin
 from secrets import ssid, password, github_user, github_repo, github_token
 
 default_branch = 'master'
-ignore_files = ['ugit.py', 'secrets.py', '.DS_Store']
+ignore_files = ['secrets.py', '.DS_Store']
 ignore = ignore_files
 giturl = f'https://github.com/{github_user}/{github_repo}'
 call_trees_url = f'https://api.github.com/repos/{github_user}/{github_repo}/git/trees/{default_branch}?recursive=1'
@@ -52,16 +52,16 @@ def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
                 if local_item:
                     os.remove(i['path'])
                     internal_tree.remove(local_item)
-                    log.append(f'{i["path"]} poistettu ja paivitetty')
+                    log.append(f'{time.localtime()} {i["path"]} poistettu ja päivitetty')
                 else:
-                    log.append(f'{i["path"]} paivitetty')
+                    log.append(f'{time.localtime()} {i["path"]} päivitetty')
                 pull(i['path'], raw + i['path'])
                 changed = True
     if len(internal_tree) > 0:
         for item in internal_tree:
             try:
                 os.remove(item[0])
-                log.append(f'{item[0]} poistettu')
+                log.append(f'{time.localtime()} {item[0]} poistettu')
                 changed = True
             except:
                 pass
@@ -82,7 +82,7 @@ def wificonnect(ssid=ssid, password=password):
         max_wait -= 1
         time.sleep(1)
     if wlan.status() != 3:
-        print('Yhteys epaonnistui')
+        print('Yhteys epäonnistui')
     else:
         print('Yhdistetty')
     return wlan

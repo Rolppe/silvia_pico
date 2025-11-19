@@ -28,14 +28,17 @@ def get_latest_commit_hash():
 
 def load_local_commit_hash():
     try:
-        with open('last_commit.txt', 'r') as f:
-            return f.read().strip()
+        with open('ugit_log.txt', 'r') as f:
+            content = f.read()
+            for line in content.splitlines():
+                if line.startswith('Last commit: '):
+                    return line.split('Last commit: ')[1].strip()
     except:
-        return None
+        pass
+    return None
 
-def save_local_commit_hash(sha):
-    with open('last_commit.txt', 'w') as f:
-        f.write(sha)
+def save_local_commit_hash(log, sha):
+    log.append(f'Last commit: {sha}')
 
 def pull(f_path, raw_url):
     print(f'Pulling {f_path} from GitHub')
@@ -78,10 +81,10 @@ def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
             timestamp = f"{t[0]:04d}/{t[1]:02d}/{t[2]:02d} - {t[3]:02d}:{t[4]:02d}:{t[5]:02d}"
             pull(i['path'], raw + i['path'])
             log.append(f'{timestamp} {i["path"]} paivitetty')
-    logfile = open('ugit_log.py', 'w')
+    save_local_commit_hash(log, latest_hash)
+    logfile = open('ugit_log.txt', 'w')
     logfile.write('\n'.join(log))
     logfile.close()
-    save_local_commit_hash(latest_hash)
     time.sleep(5)
     # machine.reset() poistettu
 

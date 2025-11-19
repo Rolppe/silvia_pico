@@ -9,7 +9,7 @@ from machine import Pin
 from secrets import ssid, password, github_user, github_repo, github_token
 
 default_branch = 'master'
-ignore_files = ['ugit.py', 'secrets.py', '.DS_Store']
+ignore_files = ['secrets.py', '.DS_Store']
 ignore = ignore_files
 giturl = f'https://github.com/{github_user}/{github_repo}'
 commit_url = f'https://api.github.com/repos/{github_user}/{github_repo}/commits/{default_branch}'

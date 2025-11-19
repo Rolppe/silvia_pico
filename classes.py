@@ -23,8 +23,8 @@ class BrewData:
         self.relay_pump_value = 0
         self.setting_changed = False
         self.pre_infusion_time = 0
-        self.brew_temperature = 100
-        self.steam_temperature = 130
+        self.brew_temperature = 97
+        self.steam_temperature = 125
         self.pressure_soft_release_time = 0
         self.pre_heat_time = 0
         self.mode = ""
@@ -326,30 +326,46 @@ class HeatingSpeedCalculator:
 class Sensor:
     def __init__(self, max31865, _thread, pin_module):
         self.sensor = max31865.MAX31865(
-            wires = 3, rtd_nominal = 100.0, ref_resistor = 430.0,
+            wires = 3, rtd_nominal = 102.5, ref_resistor = 430.0,
             pin_sck = 6, pin_mosi = 3, pin_miso = 4, pin_cs = 5
             )
+        self.temps = [0, 0, 0, 0, 0 ,0 ,0]
+        self.temps_i = 0
 
     # Function to get temperature from sensor
     def read_temperature(self):
         
         # Create value for sifting bias of the temperature
-        temperature_bias = -5.5
+        temperature_bias = -5.0
         
-        # Create an array for temperature samples
-        temps = []  
+
         
         # Get 7 temperature samples to array and calculate average to avoid the noise
-        temp = 0
-        for i in range(6):
+        fault_counter = 0
+        temp = self.sensor.temperature
+        
+        # Value error handling
+        while (temp < 2 or temp > 200):
+            print("Temperature sensor error")
+            print("Temp: " + str(temp))
             temp = self.sensor.temperature
-            while (temp < 15 or temp > 200):
-                print("Temperature sensor error")
-                temp = self.sensor.temperature
-            temps.append(temp)
+            fault_counter += 1
+            if fault_counter > 5:
+                print("Permanent sensor error")
+                return 200
+            
+        
+        self.temps[self.temps_i] = temp
+        
+        self.temps_i += 1
+        
+        if self.temps_i >= 7:
+            self.temps_i = 0
+            
+            
 
         # Calculate temperature average
-        temperature = round((sum(temps) / len(temps)), 2)
+        temperature = round((sum(self.temps) / len(self.temps)), 2)
         
         # Create error handling
         

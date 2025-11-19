@@ -55,6 +55,11 @@ def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
         wlan = wificonnect()
         time.sleep(2)
         ntptime.settime()
+    latest_hash = get_latest_commit_hash()
+    local_hash = load_local_commit_hash()
+    if latest_hash == local_hash:
+        print('Sama versio, ei paivitysta.')
+        return
     os.chdir('/')
     tree = pull_git_tree()
     log = []
@@ -76,6 +81,7 @@ def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
     logfile = open('ugit_log.py', 'w')
     logfile.write(str(log))
     logfile.close()
+    save_local_commit_hash(latest_hash)
     time.sleep(5)
     # machine.reset() poistettu
 
@@ -102,11 +108,3 @@ def pull_git_tree(tree_url=call_trees_url, raw=raw):
     r = urequests.get(tree_url, headers=headers)
     data = json.loads(r.content.decode('utf-8'))
     return data
-
-latest_hash = get_latest_commit_hash()
-local_hash = load_local_commit_hash()
-if latest_hash != local_hash:
-    pull_all()
-    save_local_commit_hash(latest_hash)
-else:
-    print('Sama versio, ei paivitysta.')

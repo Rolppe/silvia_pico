@@ -18,27 +18,24 @@ raw = f'https://raw.githubusercontent.com/{github_user}/{github_repo}/{default_b
 
 led = Pin("LED", Pin.OUT)
 
-def get_latest_commit_hash():
+def get_latest_commit_hash_and_message():
     headers = {'User-Agent': 'ota-pico'}
     if len(github_token) > 0:
         headers['authorization'] = f"bearer {github_token}"
     r = urequests.get(commit_url, headers=headers)
     data = json.loads(r.content.decode('utf-8'))
-    return data['sha']
+    return data['sha'], data['commit']['message']
 
 def load_local_commit_hash():
     try:
         with open('ugit_log.txt', 'r') as f:
             content = f.read()
-            for line in content.splitlines():
-                if line.startswith('Last commit: '):
-                    return line.split('Last commit: ')[1].strip()
+            for line in reversed(content.splitlines()):
+                if line.startswith('Update ID: '):
+                    return line.split('Update ID: ')[1].strip()
     except:
         pass
     return None
-
-def save_local_commit_hash(log, sha):
-    log.append(f'Last commit: {sha}')
 
 def pull(f_path, raw_url):
     print(f'Pulling {f_path} from GitHub')
@@ -55,11 +52,8 @@ def pull(f_path, raw_url):
 
 def is_dst(t):
     year, month, day, hour, _, _, _, _ = t
-    # Maaliskuun viimeinen sunnuntai
     march_last_sunday = 31 - (time.mktime((year, 3, 31, 0, 0, 0, 0, 0)) % 7)
-    # Lokakuun viimeinen sunnuntai
     oct_last_sunday = 31 - (time.mktime((year, 10, 31, 0, 0, 0, 0, 0)) % 7)
-    
     if month < 3 or month > 10:
         return False
     if month > 3 and month < 10:
@@ -69,13 +63,13 @@ def is_dst(t):
             return False
         if day > march_last_sunday:
             return True
-        return hour >= 1  # Siirtyy klo 3:00 -> 4:00, UTC klo 1:00
+        return hour >= 1
     if month == 10:
         if day < oct_last_sunday:
             return True
         if day > oct_last_sunday:
             return False
-        return hour < 1  # Siirtyy klo 4:00 -> 3:00, UTC klo 1:00
+        return hour < 1
 
 def get_finland_time():
     utc = time.localtime()
@@ -88,14 +82,13 @@ def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
         wlan = wificonnect()
         time.sleep(2)
         ntptime.settime()
-    latest_hash = get_latest_commit_hash()
+    latest_hash, commit_message = get_latest_commit_hash_and_message()
     local_hash = load_local_commit_hash()
     if latest_hash == local_hash:
         print('Sama versio, ei paivitysta.')
         return
     os.chdir('/')
     tree = pull_git_tree()
-    log = []
     for i in tree['tree']:
         if i['type'] == 'tree':
             try:
@@ -107,14 +100,13 @@ def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
                 os.remove(i['path'])
             except:
                 pass
-            t = get_finland_time()
-            timestamp = f"{t[0]:04d}/{t[1]:02d}/{t[2]:02d} - {t[3]:02d}:{t[4]:02d}:{t[5]:02d}"
             pull(i['path'], raw + i['path'])
-            log.append(f'{timestamp} {i["path"]} paivitetty')
-    save_local_commit_hash(log, latest_hash)
-    logfile = open('ugit_log.txt', 'w')
-    logfile.write('\n'.join(log))
-    logfile.close()
+    t = get_finland_time()
+    timestamp = f"{t[0]:04d}/{t[1]:02d}/{t[2]:02d} - {t[3]:02d}:{t[4]:02d}:{t[5]:02d}"
+    with open('ugit_log.txt', 'a') as logfile:
+        logfile.write(f'Timestamp: {timestamp}\n')
+        logfile.write(f'Update ID: {latest_hash}\n')
+        logfile.write(f'Update message: {commit_message}\n\n')
     time.sleep(5)
     # machine.reset() poistettu
 

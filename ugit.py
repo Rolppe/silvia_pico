@@ -78,8 +78,8 @@ def pull_all(tree=call_trees_url, raw=raw, ignore=ignore, isconnected=False):
             timestamp = f"{t[0]:04d}/{t[1]:02d}/{t[2]:02d} - {t[3]:02d}:{t[4]:02d}:{t[5]:02d}"
             pull(i['path'], raw + i['path'])
             log.append(f'{timestamp} {i["path"]} paivitetty')
-    logfile = open('ugit_log.py', 'w')
-    logfile.write(str(log))
+    logfile = open('ugit_log.txt', 'w')
+    logfile.write('\n'.join(log))
     logfile.close()
     save_local_commit_hash(latest_hash)
     time.sleep(5)

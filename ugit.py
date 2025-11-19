@@ -121,6 +121,7 @@ def add_to_tree(dir_item, internal_tree):
 def get_hash(file):
     with open(file, 'rb') as o_file:
         r_file = o_file.read()
+        r_file = r_file.replace(b'\r\n', b'\n')  # Normalisoi LF
         header = b"blob " + str(len(r_file)).encode() + b"\0"
         sha1obj = hashlib.sha1(header + r_file)
         return sha1obj.hexdigest()

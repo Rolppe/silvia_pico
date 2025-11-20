@@ -1,5 +1,5 @@
 # Function for printing information
-def print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump):
+def print_values(brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump):
  
     # Get boiler temperature
     boiler_temperature = sensor.read_temperature()
@@ -7,22 +7,22 @@ def print_values(lock_printer, brew_data, sensor, heating_speed, relay_heater, r
     # Get mode from object
     mode = brew_data.get_mode()
     
-    # Get settings from brew_data object
-    brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()
+    ## Get settings from brew_data object
+    # brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()
     
     brew_switch_state, steam_switch_state, water_switch_state = brew_data.get_switches_state()
     
     # Print values
-    lock_printer.print("Mode: ", mode)
-    lock_printer.print("Boiler temperature: ", boiler_temperature)
-    lock_printer.print("heating_speed", heating_speed)
-    lock_printer.print("switch_brew: ", brew_switch_state.value())
-    lock_printer.print("switch_water: ", water_switch_state.value()) 
-    lock_printer.print("switch_steam: ", steam_switch_state.value())
-    lock_printer.print("relay_heater: ", relay_heater.value())
-    lock_printer.print("relay_solenoid: ", relay_solenoid.value())
-    lock_printer.print("relay_pump: ", relay_pump.value())
-    lock_printer.print("","")
+    print("Mode: ", mode)
+    print("Boiler temperature: ", boiler_temperature)
+    print("heating_speed", heating_speed)
+    print("switch_brew: ", brew_switch_state.value())
+    print("switch_water: ", water_switch_state.value()) 
+    print("switch_steam: ", steam_switch_state.value())
+    print("relay_heater: ", relay_heater.value())
+    print("relay_solenoid: ", relay_solenoid.value())
+    print("relay_pump: ", relay_pump.value())
+    print("","")
 
 
 # Funktion for saving settings to file
@@ -68,8 +68,9 @@ def load_settings(json_module, brew_data):
     # Return True
     return True
 
+
  # Funktion for WiFi connection creation
-def set_station(time_module, network_module, ssid, password, lock_printer):
+def set_station(time_module, network_module, ssid, password):
     
     # Create station module
     station = network_module.WLAN(network_module.STA_IF)
@@ -98,7 +99,7 @@ def set_station(time_module, network_module, ssid, password, lock_printer):
         max_wait -= 1
         
         # Print waiting status
-        lock_printer.print('waiting for connection...')
+        print('waiting for connection...')
         
         # Set delay for one second
         time_module.sleep(1)
@@ -110,14 +111,15 @@ def set_station(time_module, network_module, ssid, password, lock_printer):
     
     # Otherwise inform from succesful connection and show link to ip in browser and return True
     else:
-        lock_printer.print('Connected')
-        lock_printer.print('Käynnistetty. Mene selaimella <a href="http://{0}" target="_blank">{0}</a>'.format(ip_address))
+        print('Connected')
+        print('Käynnistetty. Mene selaimella <a href="http://{0}" target="_blank">{0}</a>'.format(ip_address))
         status = station.ifconfig()
-        lock_printer.print('ip = ' , status[0])
+        print('ip = ' , status[0])
         return True
 
+
 # Function for two ways connection
-def set_socket(socket,time_module, lock_printer):
+def set_socket(socket,time_module):
     
     # Create socket
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -141,7 +143,7 @@ def set_socket(socket,time_module, lock_printer):
         # If there's an error. Inform about it
         except OSError as e:
             if e.errno == 98:
-                lock_printer.print(f"Port {port} is already in use. Waiting for it to become available...")
+                print(f"Port {port} is already in use. Waiting for it to become available...")
             
             # Wait for one second
             time_module.sleep(1)  
@@ -155,17 +157,7 @@ def response_HTML(brew_data):
 
     # Get settings from brew_data object
     brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()
-    
-    # Get the states of the switches from brew_data object
-    brew_switch_state, steam_switch_state, water_switch_state = brew_data.get_switches_state()
 
-
-    
-    # Button color is green if off and red if on
-    brew_switch_color = 'red' if brew_switch_state else 'green'
-    steam_switch_color = 'red' if steam_switch_state else 'green'
-    water_switch_color = 'red' if water_switch_state else 'green'
-    
     # Return HTML
     return f"""HTTP/1.1 200 OK
 Content-type:text/html
@@ -189,24 +181,5 @@ Content-type:text/html
       <br><br>
       <input type="submit" value="Set values and refresh" name="set_values_">
     </form>
-    <form action="/set_value" method="get">
-      <button type = "submit" name = "brew_switch" value = "true" style = "background-color:{brew_switch_color}">Brew</button>
-    </form>
-    <form action="/set_value" method="get">
-      <button type="submit" name="water_switch" value = "true" style="background-color:{water_switch_color}">Water</button>
-    </form>
-    <form action="/set_value" method="get">
-      <button type="submit" name="steam_switch" value = "true" style="background-color:{steam_switch_color}">Steam</button>
-    </form>
   </body>
 </html>"""
-
-
-#<!--Lisää päivitys testausta varten-->
-#    <meta http-equiv="refresh" content="2; url=http://192.168.0.99/">
-#     <p>
-#       Mode: {mode}
-#     </p>
-#     <p>
-#       Temperature: {boiler_temperature}
-#     </p>

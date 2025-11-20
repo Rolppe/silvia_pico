@@ -1,185 +1,128 @@
-# Class that gives threads turns on printing to avoid collision
-class LockPrinter:
-    def __init__(self, _thread):        
-        self.lock_print = _thread.allocate_lock()
-
-    # Function for printing
-    def print(self, first_parameter, second_parameter=""):
-        self.lock_print.acquire()
-        print(first_parameter, second_parameter)
-        self.lock_print.release()
-
-
-# Class to share data between the cores
+###### Class to share data between the cores ####
 class BrewData:
-    def __init__(self, _thread, brew_switch, steam_switch, water_switch):
-        self.lock = _thread.allocate_lock()
-        self._thread = _thread
+    def __init__(self, brew_switch, steam_switch, water_switch):
         self.brew_switch = brew_switch
         self.steam_switch = steam_switch
         self.water_switch = water_switch
-        self.relay_heater_value = 0
-        self.relay_solenoid_value = 0
-        self.relay_pump_value = 0
         self.setting_changed = False
         self.pre_infusion_time = 0
         self.brew_temperature = 97
         self.steam_temperature = 125
         self.pressure_soft_release_time = 0
         self.pre_heat_time = 0
-        self.mode = ""
+        self.mode = "idle"
         self.boiler_temperature = 0
         self.target_temperature = 0
         self.heating_speed = 0
     
     # Function to set mode value
     def set_mode(self, mode):
-        self.lock.acquire()
         self.mode = mode
-        self.lock.release()
     
     # Function to set brew settings
     def set_settings(self, brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time):
-        self.lock.acquire()
         self.brew_temperature = brew_temperature
         self.steam_temperature = steam_temperature
         self.pre_infusion_time = pre_infusion_time
         self.pressure_soft_release_time = pressure_soft_release_time
         self.pre_heat_time = pre_heat_time
         self.setting_changed = True
-        self.lock.release()
         
     def set_boiler_stats(self, target_temperature, heating_speed):
-        self.lock.acquire()
         self.target_temperature = target_temperature
         self.heating_speed = heating_speed
-        self.lock.release()
         
     def set_heating_speed(self, heating_speed):
-        self.lock.acquire()
         self.heating_speed = heating_speed
-        self.lock.release()
     
     # Function for setting preinfusion time
     def set_pre_infusion_time(self, time):
-        self.lock.acquire()
         self.pre_infusion_time = time
         self.setting_changed = True
-        self.lock.release()
         
     # Function for setting brew temperature
     def set_brew_temperature(self, temperature):
-        self.lock.acquire()
         self.brew_temperature = temperature
         self.setting_changed = True
-        self.lock.release()
     
     def set_boiler_temperature(self, boiler_temperature):
-        self.lock.acquire()
         self.boiler_temperature = boiler_temperature
-        self.lock.release()
         
     # Function to get mode value
     def get_mode(self):
-        self.lock.acquire()
         mode = self.mode
-        self.lock.release()
         return mode
     
     # Function to get brew settings
     def get_settings(self):
-        self.lock.acquire()
         brew_temperature = self.brew_temperature
         steam_temperature = self.steam_temperature
         pre_infusion_time = self.pre_infusion_time
         pressure_soft_release_time = self.pressure_soft_release_time
         pre_heat_time = self.pre_heat_time
-        self.lock.release()
         return brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time
     
     # Function to get pre-infusion time
     def get_pre_infusion_time(self):
-        self.lock.acquire()
         time = self.pre_infusion_time
-        self.lock.release()
         return time
     
     # Function to get brew temperature
     def get_brew_temperature(self):
-        self.lock.acquire()
         brew_temperature = self.brew_temperature
-        self.lock.release()
         return brew_temperature
     
         # Function to get the states of the switches
     def get_switches_state(self):
-        self.lock.acquire()
         brew_switch = self.brew_switch
         steam_switch = self.steam_switch
         water_switch = self.water_switch
-        self.lock.release()
         return brew_switch, steam_switch, water_switch
     
     # Function to get state of the brew switch
     def get_brew_switch_state(self):
-        self.lock.acquire()
         brew_switch = self.brew_switch
-        self.lock.release()
         return brew_switch
     
     # Function to get the state of the brew switch
     def get_water_switch_state(self):
-        self.lock.acquire()
         water_switch = self.water_switch
-        self.lock.release()
         return water_switch
     
     # Function to get the state of the steam switch
     def get_steam_switch_state(self):
-        self.lock.acquire()
         steam_switch = self.steam_switch
-        self.lock.release()
         return steam_switch
 
     def get_boiler_temperature(self):
-        self.lock.acquire()
         boiler_temperature = self.boiler_temperature
-        self.lock.release()
         return boiler_temperature
     
     def get_target_temperature(self):
-        self.lock.acquire()
         target_temperature = self.target_temperature
-        self.lock.release()
         return target_temperature
 
     def get_heating_speed(self):
-        self.lock.acquire()
         heating_speed = self.heating_speed
-        self.lock.release()
         return heating_speed
     
     def get_boiler_stats(self):
-        self.lock.acquire()
         boiler_temperature = self.boiler_temperature
         brew_temperature = self.brew_temperature
         steam_temperature = self.steam_temperature
         heating_speed = self.heating_speed
-        self.lock.release()
         return boiler_temperature, brew_temperature, steam_temperature, heating_speed
     
     def get_pre_heat_time(self):
-        self.lock.acquire()
         pre_heat_time = self.pre_heat_time
-        self.lock.release()
         return pre_heat_time
 
     def get_pressure_soft_release_time(self):
-        self.lock.acquire()
         pressure_soft_release_time = self.pressure_soft_release_time
-        self.lock.release()
         return pressure_soft_release_time
-        
+
+
+#### Class for thermostat ####  
 class Thermostat:
     def __init__(self):
         self.cycle_count = 0
@@ -208,7 +151,7 @@ class Thermostat:
         else:
             relay_heater.value(0)
     
-    
+  
     def get_target_temperature(switch_steam,brew_temperature, steam_temperature):
         
         # If steam switch is off: set brewing temperature as a target temperature
@@ -257,7 +200,6 @@ class Thermostat:
         else:
             return_bool = False
         
-        
         if (cycle_count >= 90):
             cycle_count = 0
         else:
@@ -268,16 +210,9 @@ class Thermostat:
             return True
         else:
             return False
-        
-    # Function to get temperature
-    def get_temperature(self):
-        self.lock.acquire()
-        temperature = round(self.temperature, 2)
-        self.lock.release()
-        return temperature
 
 
-# Class to calculate heating speed
+#### Class to calculate heating speed ####
 class HeatingSpeedCalculator:
     def __init__(self, utime_module):
         self.temperature_begin = 20.0
@@ -322,9 +257,9 @@ class HeatingSpeedCalculator:
         return heating_speed
   
   
-# Class for reading sensor temperature
+#### Class for reading pt100 sensor temperature with max31865 ####
 class Sensor:
-    def __init__(self, max31865, _thread, pin_module):
+    def __init__(self, max31865, pin_module):
         self.sensor = max31865.MAX31865(
             wires = 3, rtd_nominal = 102.5, ref_resistor = 430.0,
             pin_sck = 6, pin_mosi = 3, pin_miso = 4, pin_cs = 5
@@ -338,8 +273,6 @@ class Sensor:
         # Create value for sifting bias of the temperature
         temperature_bias = -5.0
         
-
-        
         # Get 7 temperature samples to array and calculate average to avoid the noise
         fault_counter = 0
         temp = self.sensor.temperature
@@ -352,17 +285,14 @@ class Sensor:
             fault_counter += 1
             if fault_counter > 5:
                 print("Permanent sensor error")
-                return 200
-            
+                return 200            
         
         self.temps[self.temps_i] = temp
         
         self.temps_i += 1
         
         if self.temps_i >= 7:
-            self.temps_i = 0
-            
-            
+            self.temps_i = 0          
 
         # Calculate temperature average
         temperature = round((sum(self.temps) / len(self.temps)), 2)

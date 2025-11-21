@@ -132,7 +132,7 @@ while True:
     if switch_brew.value():
         
         # Set mode to brewing
-        brew_data.set_mode('water')
+        brew_data.set_mode('brew')
         
         # Initialize counter for brewing cycles
         brew_cycle_counter = 0
@@ -148,12 +148,12 @@ while True:
         while(switch_brew.value()):
             
             # If under 1500 cycles, set heater off and increment counter
-            if brew_counter < 1500:
+            if brew_cycle_counter < 1500:
                 relay_heater.value(0)
                 brew_cycle_counter += 1
             
             # If 1500 between 3000 cycles, set heater on and increment counter
-            elif brew_counter < 3000:
+            elif brew_cycle_counter < 3000:
                 relay_heater.value(1)
                 brew_cycle_counter += 1
             

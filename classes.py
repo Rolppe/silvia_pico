@@ -136,7 +136,7 @@ class Thermostat:
         target_temperature = Thermostat.get_target_temperature(switch_steam, brew_temperature, steam_temperature)
         
         # Set heating mode to brew_data
-        Thermostat.set_brew_mode(brew_data, boiler_temperature, target_temperature, brew_temperature)
+        Thermostat.set_mode(brew_data, boiler_temperature, target_temperature, brew_temperature)
 
         # If boiler temperature is lower than target temperature - heating speed
         if (boiler_temperature < (target_temperature - (heating_speed * 2))):
@@ -164,7 +164,7 @@ class Thermostat:
         
         return target_temperature  
       
-    def set_brew_mode(brew_data, boiler_temperature, target_temperature, brew_temperature):
+    def set_mode(brew_data, boiler_temperature, target_temperature, brew_temperature):
             # If boiler is at least 1 degree celsius lower than target temperature
         if boiler_temperature < target_temperature -1:
                 

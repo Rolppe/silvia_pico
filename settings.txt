@@ -1,1 +1,1 @@
-{"pre_infusion_time": 0, "pressure_soft_release_time": 0, "pre_heat_time": 0, "steam_temperature": 125, "brew_temperature": 95}
+{"pre_infusion_time": 0, "pressure_soft_release_time": 0, "pre_heat_time": 0, "steam_temperature": 120, "brew_temperature": 95}

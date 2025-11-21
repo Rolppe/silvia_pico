@@ -1,5 +1,5 @@
 # Funktion for WiFi connection creation
-def set_station(time_module, network_module, ssid, password, lock_printer):
+def set_station(time_module, network_module, ssid, password):
     
     # Create station module
     station = network_module.WLAN(network_module.STA_IF)
@@ -26,10 +26,7 @@ def set_station(time_module, network_module, ssid, password, lock_printer):
         
         # Decrease 1 second from waiting time
         max_wait -= 1
-        
-        # Print waiting status
-        lock_printer.print('waiting for connection...')
-        
+                
         # Set delay for one second
         time_module.sleep(1)
         
@@ -40,15 +37,15 @@ def set_station(time_module, network_module, ssid, password, lock_printer):
     
     # Otherwise inform from succesful connection and show link to ip in browser and return True
     else:
-        lock_printer.print('Connected')
-        lock_printer.print('Api at the address: <a href="http://{0}" target="_blank">{0}</a>'.format(ip_address))
+        print('Connected')
+        print('Api at the address: <a href="http://{0}" target="_blank">{0}</a>'.format(ip_address))
         status = station.ifconfig()
-        lock_printer.print('ip = ' , status[0])
+        print('ip = ' , status[0])
         return True
 
 
 # Function for two ways connection
-def set_socket(socket,time_module, lock_printer):
+def set_socket(socket,time_module):
     
     # Create socket
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -72,7 +69,7 @@ def set_socket(socket,time_module, lock_printer):
         # If there's an error. Inform about it
         except OSError as e:
             if e.errno == 98:
-                lock_printer.print(f"Port {port} is already in use. Waiting for it to become available...")
+                print(f"Port {port} is already in use. Waiting for it to become available...")
             
             # Wait for one second
             time_module.sleep(1)  

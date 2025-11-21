@@ -150,21 +150,25 @@ while True:
             # If under 1500 cycles, set heater off and increment counter
             if brew_counter < 1500:
                 relay_heater.value(0)
-                brew_counter += 1
+                brew_cycle_counter += 1
             
             # If 1500 between 3000 cycles, set heater on and increment counter
             elif brew_counter < 3000:
                 relay_heater.value(1)
+                brew_cycle_counter += 1
             
             # At the 3000 cycles reset counter
             else:
-                brew_counter = 0
+                brew_cycle_counter = 0
             
         # Set heater off after brewing for security reason
         relay_heater.value(0)
         
         # Set pump off
         relay_pump.value(0)
+        
+        # Set soleinoid off
+        relay_solenoid.value(0)
 
 
     ### HOT WATER MODE AND API MODE ###       

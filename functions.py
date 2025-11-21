@@ -1,3 +1,52 @@
+def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor):
+        
+    # Fill the boiler
+    relay_solenoid.value(1)
+    relay_pump.value(1)
+    utime.sleep(2)
+    relay_pump.value(0)
+    relay_solenoid.value(0)
+    
+   
+ # Heat the boiler
+    relay_heater.value(1)
+    while sensor.read_temperature() < 85:
+        utime.sleep(1)
+    while sensor.read_temperature() < 110:
+        relay_heater.value(1)
+        utime.sleep(1)
+        relay_heater.value(0)
+        utime.sleep(1)
+    while sensor.read_temperature() < 120:
+        relay_heater.value(1)
+        utime.sleep(1)
+        relay_heater.value(0)
+        utime.sleep(2)
+    while sensor.read_temperature() < 125:
+        relay_heater.value(1)
+        utime.sleep(1)
+        relay_heater.value(0)
+        utime.sleep(3)
+    
+    # keep the temp
+    for i in range(200):
+        if sensor.read_temperature() < 125:
+            relay_heater.value(1)
+        else:
+            relay_heater.value(0)
+        utime.sleep(1)
+
+    
+    # Cool the boiler
+    while sensor.read_temperature() > 105:
+    
+        # Fill the boiler
+        relay_solenoid.value(1)
+        relay_pump.value(1)
+        utime.sleep(0.5)
+        relay_pump.value(0)
+        relay_solenoid.value(0)
+
 # Function for printing information
 def print_values(brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump):
  

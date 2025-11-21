@@ -164,7 +164,7 @@ while True:
         relay_heater.value(0)
         
         # Set pump off
-        relay_pump.value(1)
+        relay_pump.value(0)
 
 
     ### HOT WATER MODE AND API MODE ###       

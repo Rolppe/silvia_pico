@@ -12,7 +12,7 @@ from machine import Pin
 from secrets import ssid, password, github_user, github_repo, github_token
 
 # Set default branch to 'master'
-default_branch = 'master'
+default_branch = 'developement'
 
 # Set ignored files
 ignore_files = ['ugit.py', 'secrets.py', '.DS_Store', 'ugit_log.txt']

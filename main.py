@@ -162,6 +162,9 @@ while True:
             
         # Set heater off after brewing for security reason
         relay_heater.value(0)
+        
+        # Set pump off
+        relay_pump.value(1)
 
 
     ### HOT WATER MODE AND API MODE ###       

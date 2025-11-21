@@ -83,7 +83,7 @@ def network_settings_api():
     
 
 # If steam switch is off, set mode for fast heatup and fill boiler
-if switch_steam.value():
+if not switch_steam.value():
     brew_data.set_mode('fast_heatup')
     
     # Fill the boiler

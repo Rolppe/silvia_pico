@@ -94,7 +94,7 @@ if switch_steam.value():
     relay_solenoid.value(0)
 
 # Run thermostat cycle
-thermostat = Thermostat(utime)
+thermostat = Thermostat()
 
 #### MAIN LOOP ####
 

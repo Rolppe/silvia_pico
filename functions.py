@@ -16,26 +16,23 @@ def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor):
         relay_heater.value(1)
         utime.sleep(1)
         relay_heater.value(0)
-        utime.sleep(1)
+        utime.sleep(1.5)
     while sensor.read_temperature() < 120:
         relay_heater.value(1)
         utime.sleep(1)
         relay_heater.value(0)
         utime.sleep(2)
-    while sensor.read_temperature() < 125:
-        relay_heater.value(1)
-        utime.sleep(1)
-        relay_heater.value(0)
-        utime.sleep(3)
     
-    # keep the temp
+    # keep the temperature
     for i in range(200):
-        if sensor.read_temperature() < 125:
+        if sensor.read_temperature() < 120:
             relay_heater.value(1)
+            utime.sleep(1)
+            relay_heater.value(0)
+            utime.sleep(2)
         else:
             relay_heater.value(0)
         utime.sleep(1)
-
     
     # Cool the boiler
     while sensor.read_temperature() > 105:

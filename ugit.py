@@ -11,7 +11,7 @@ import ntptime
 from machine import Pin
 from secrets import ssid, password, github_user, github_repo, github_token
 
-# Set default branch to 'master'
+# Set default branch to 'developement. Stable at 'master'
 default_branch = 'developement'
 
 # Set ignored files

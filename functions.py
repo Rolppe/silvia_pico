@@ -46,7 +46,7 @@ def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor):
     relay_solenoid.value(0)
     
     # Sleep while boiler stabilizes
-    utime.sleep(10)
+    utime.sleep(15)
 
 # Function for printing information
 def print_values(brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump):

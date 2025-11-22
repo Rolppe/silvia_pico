@@ -1,7 +1,3 @@
-# Settings
-pre_infusion = True
-
-
 # Import libraries
 import utime
 import json
@@ -12,12 +8,10 @@ import network
 
 # Import functions, classes and data
 from api_functions import set_station, set_socket,  response_HTML, parse_request
-from functions import save_settings, load_settings, print_values, fast_heatup
+from functions import save_settings, load_settings, print_values, fast_heatup, pre_infusion
 from classes import BrewData, HeatingSpeedCalculator, Thermostat, Sensor
 from secrets import ssid, password
 
-# Initialize max31865 (temperature sensort pt100)
-sensor = Sensor(max31865, Pin)
 
 # Set the input pins for switches
 switch_brew = Pin(7, Pin.IN, Pin.PULL_DOWN)
@@ -28,6 +22,21 @@ switch_water = Pin(8, Pin.IN, Pin.PULL_DOWN)
 relay_heater = Pin(11, Pin.OUT, value = 0)
 relay_solenoid = Pin(12, Pin.OUT, value = 0)
 relay_pump = Pin(13, Pin.OUT, value = 0)
+
+
+######## Developement Settings ###########################
+
+fast_heatup_mode = False
+pre_infusion_mode = True
+
+pre_infusion_pressure_buildup_time = 1
+pre_infusion_time = 5 
+soft_pressure_release_time = 2 # 0 is off
+
+##########################################################
+
+# Initialize max31865 (temperature sensort pt100)
+sensor = Sensor(max31865, Pin)
 
 # Create data and state store object 
 brew_data = BrewData(switch_brew, switch_steam, switch_water)
@@ -86,12 +95,12 @@ def network_settings_api():
         utime.sleep(1)
     
 
-# If steam switch is off, set mode for fast heatup and fill boiler
-if not switch_steam.value():
+# If steam switch is off and fast heatup mode is on, set mode for fast heatup and fill boiler
+if not switch_steam.value() and fast_heatup_mode:
     brew_data.set_mode('fast_heatup')
-    fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor)
+    fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor, pressure_buildup_time, pre_infusion_time)
 
-# Run thermostat cycle
+# Initialize thermostat
 thermostat = Thermostat()
 
 #### MAIN LOOP ####
@@ -129,6 +138,11 @@ while True:
     # If brew swith is on start brewing 
     if switch_brew.value():
         
+        if pre_infusion_mode:
+            print(0)
+            brew_data.set_mode('pre-infusion')
+            pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pre_infusion_pressure_buildup_time, pre_infusion_time)
+        
         # Set mode to brewing
         brew_data.set_mode('brew')
         
@@ -144,26 +158,21 @@ while True:
         ## BREW LOOP ##
         # Run brew cycle with heat cycling as long as brew switch is on
         while(switch_brew.value()):
-            
-            # If under 1500 cycles, set heater off and increment counter
-            if brew_cycle_counter < 1500:
-                relay_heater.value(0)
-                brew_cycle_counter += 1
-            
-            # If 1500 between 3000 cycles, set heater on and increment counter
-            elif brew_cycle_counter < 3000:
-                relay_heater.value(1)
-                brew_cycle_counter += 1
-            
-            # At the 3000 cycles reset counter
-            else:
-                brew_cycle_counter = 0
+            relay_heater.value(1)
+            utime.sleep(0.4)
+            relay_heater.value(0)
+            utime.sleep(0.2)
+            # brew_cycle_counter += 1 
             
         # Set heater off after brewing for security reason
         relay_heater.value(0)
         
         # Set pump off
         relay_pump.value(0)
+        
+        ## SLOW PRESSURE RELEASE ##
+        utime.sleep(soft_pressure_release_time)
+            
         
         # Set soleinoid off
         relay_solenoid.value(0)

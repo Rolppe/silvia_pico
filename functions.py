@@ -1,4 +1,22 @@
-def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor):
+def pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pre_infusion_pressure_buildup_time, pre_infusion_time):
+    print("buildup time: "+ str(pre_infusion_pressure_buildup_time))
+    print("pre time: "+ str(pre_infusion_time))
+    print(2)
+    relay_heater.value(0)
+    relay_solenoid.value(1)
+    
+    relay_pump.value(1)
+    utime.sleep(2)
+    relay_pump.value(0)
+    
+    for x in range(10):
+        relay_pump.value(1)
+        utime.sleep(0.1)
+        relay_pump.value(0)
+        utime.sleep(0.8)
+            
+
+def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor): #
         
     # Fill the boiler
     relay_solenoid.value(1)
@@ -35,7 +53,7 @@ def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor):
         utime.sleep(1)
     
     # Cool the boiler to under 105 celsius
-    while sensor.read_temperature() > 97:
+    while sensor.read_temperature() > 99:
         utime.sleep(1)
         
     # Fill the boiler

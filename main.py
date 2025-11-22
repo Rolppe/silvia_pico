@@ -1,5 +1,10 @@
 # Settings
-pre_infusion = True
+fast_heatup_setting = False
+pre_infusion_setting = True
+
+pre_infusion_pressure_buildup_time = 1
+pre_infusion_time = 5 
+
 
 
 # Import libraries
@@ -12,7 +17,7 @@ import network
 
 # Import functions, classes and data
 from api_functions import set_station, set_socket,  response_HTML, parse_request
-from functions import save_settings, load_settings, print_values, fast_heatup
+from functions import save_settings, load_settings, print_values, fast_heatup, pre_infusion
 from classes import BrewData, HeatingSpeedCalculator, Thermostat, Sensor
 from secrets import ssid, password
 
@@ -87,9 +92,9 @@ def network_settings_api():
     
 
 # If steam switch is off, set mode for fast heatup and fill boiler
-if not switch_steam.value():
+if not switch_steam.value() and fast_heatup_setting:
     brew_data.set_mode('fast_heatup')
-    fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor)
+    fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor, pressure_buildup_time, pre_infusion_time)
 
 # Run thermostat cycle
 thermostat = Thermostat()
@@ -128,6 +133,11 @@ while True:
     
     # If brew swith is on start brewing 
     if switch_brew.value():
+        
+        if pre_infusion_setting:
+            print(0)
+            brew_data.set_mode('pre-infusion')
+            pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pre_infusion_pressure_buildup_time, pre_infusion_time)
         
         # Set mode to brewing
         brew_data.set_mode('brew')

@@ -144,8 +144,8 @@ while True:
             # Set heater of for safety
             relay_heater.value(0)
             
-            #If brew switch is being put of within third second, push water and skip preinfusion
-            utime.sleep(1)
+            #If brew switch is being put of within half second, push water and skip preinfusion
+            utime.sleep(0.5)
             
             if not switch_brew.value():
                 relay_solenoid.value(1)
@@ -160,40 +160,40 @@ while True:
                 
                 # Start pre-infusion program function
                 pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor)
-        
-        # Set mode to brewing
-        brew_data.set_mode('brew')
-        
-        # Initialize counter for brewing cycles
-        brew_cycle_counter = 0
-        
-        # Set solenoid an on for brewing
-        relay_solenoid.value(1)
-        
-        # Set pump on for brewing
-        relay_pump.value(1)
-        
-        ## BREW LOOP ##
-        # Run brew cycle with heat cycling as long as brew switch is on
-        while(switch_brew.value()):
-            relay_heater.value(1)
-            utime.sleep(0.4)
-            relay_heater.value(0)
-            utime.sleep(0.2)
-            # brew_cycle_counter += 1 
             
-        # Set heater off after brewing for safety
-        relay_heater.value(0)
-        
-        # Set pump off
-        relay_pump.value(0)
-        
-        ## SLOW PRESSURE RELEASE ##
-        utime.sleep(soft_pressure_release_time)
-            
-        
-        # Set soleinoid off
-        relay_solenoid.value(0)
+                # Set mode to brewing
+                brew_data.set_mode('brew')
+                
+                # Initialize counter for brewing cycles
+                brew_cycle_counter = 0
+                
+                # Set solenoid an on for brewing
+                relay_solenoid.value(1)
+                
+                # Set pump on for brewing
+                relay_pump.value(1)
+                
+                ## BREW LOOP ##
+                # Run brew cycle with heat cycling as long as brew switch is on
+                while(switch_brew.value()):
+                    relay_heater.value(1)
+                    utime.sleep(0.4)
+                    relay_heater.value(0)
+                    utime.sleep(0.2)
+                    # brew_cycle_counter += 1 
+                    
+                # Set heater off after brewing for safety
+                relay_heater.value(0)
+                
+                # Set pump off
+                relay_pump.value(0)
+                
+                ## SLOW PRESSURE RELEASE ##
+                utime.sleep(soft_pressure_release_time)
+                    
+                
+                # Set soleinoid off
+                relay_solenoid.value(0)
 
 
     ### HOT WATER MODE AND API MODE ###       

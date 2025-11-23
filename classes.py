@@ -263,7 +263,7 @@ class Sensor:
         self.sensor = max31865.MAX31865(
             # ref_resistor arvoksi noin 438.0 tai rtd_nominal arvoksi noin 100.7
             #  OG = rtd_nominal = 102.5, ref_resistor = 430.0
-            wires = 3, rtd_nominal = 102.5, ref_resistor = 440.0, 
+            wires = 3, rtd_nominal = 102.5, ref_resistor = 430.0, 
             pin_sck = 6, pin_mosi = 3, pin_miso = 4, pin_cs = 5
             )
         self.temps = [0, 0, 0, 0, 0 ,0 ,0]
@@ -273,7 +273,7 @@ class Sensor:
     def read_temperature(self):
         
         # Create value for sifting bias of the temperature
-        temperature_bias = -5.0
+        temperature_bias = 0 # -5.0
         
         # Get 7 temperature samples to array and calculate average to avoid the noise
         fault_counter = 0

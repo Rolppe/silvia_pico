@@ -1,4 +1,4 @@
-def pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pre_infusion_pressure_buildup_time, pre_infusion_time):
+def pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor):
     
     # Turn solenoid on
     relay_solenoid.value(1)

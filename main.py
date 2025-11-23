@@ -98,7 +98,7 @@ def network_settings_api():
 # If steam switch is off and fast heatup mode is on, set mode for fast heatup and fill boiler
 if not switch_steam.value() and fast_heatup_mode:
     brew_data.set_mode('fast_heatup')
-    fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor, pressure_buildup_time, pre_infusion_time)
+    fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor)
 
 # Initialize thermostat
 thermostat = Thermostat()
@@ -138,27 +138,28 @@ while True:
     # If brew swith is on start brewing 
     if switch_brew.value():
         
-
-        
         ## Pre-infusion ##
         if pre_infusion_mode:
+            
             # Set heater of for safety
             relay_heater.value(0)
             
             #If brew switch is being put of within third second, push water and skip preinfusion
             utime.sleep(0.33)
+            
             if not switch_brew.value():
                 relay_solenoid.value(1)
                 relay_pump.value(1)
                 utime.sleep(1)
                 relay_pump.value(0)
                 relay_solenoid.value(0)
+                
             else:
                 # Set mode to pre-infusion
                 brew_data.set_mode('pre-infusion')
                 
                 # Start pre-infusion program function
-                pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pre_infusion_pressure_buildup_time, pre_infusion_time)
+                pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor)
         
         # Set mode to brewing
         brew_data.set_mode('brew')

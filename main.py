@@ -138,8 +138,17 @@ while True:
     # If brew swith is on start brewing 
     if switch_brew.value():
         
+        #If brew switch is being put of within third second, push water and skip preinfusion
+        utime.sleep(0.33)
+        if not switch_brew.value():
+            relay_solenoid.value(1)
+            relay_pump.value(1)
+            utime.sleep(1)
+            relay_pump.value(0)
+            relay_solenoid.value(0)
+        
         ## Pre-infusion ##
-        if pre_infusion_mode:
+        elif pre_infusion_mode:
             
             # Set heater of for safety
             relay_heater.value(0)

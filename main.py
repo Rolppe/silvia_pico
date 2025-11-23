@@ -142,6 +142,9 @@ while True:
         
         ## Pre-infusion ##
         if pre_infusion_mode:
+            # Set heater of for safety
+            relay_heater.value(0)
+            
             #If brew switch is being put of within third second, push water and skip preinfusion
             utime.sleep(0.33)
             if not switch_brew.value():
@@ -150,14 +153,12 @@ while True:
                 utime.sleep(1)
                 relay_pump.value(0)
                 relay_solenoid.value(0)
-            # Set heater of for safety
-            relay_heater.value(0)
-            
-            # Set mode to pre-infusion
-            brew_data.set_mode('pre-infusion')
-            
-            # Start pre-infusion program function
-            pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pre_infusion_pressure_buildup_time, pre_infusion_time)
+            else:
+                # Set mode to pre-infusion
+                brew_data.set_mode('pre-infusion')
+                
+                # Start pre-infusion program function
+                pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pre_infusion_pressure_buildup_time, pre_infusion_time)
         
         # Set mode to brewing
         brew_data.set_mode('brew')

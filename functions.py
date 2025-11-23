@@ -1,19 +1,18 @@
 def pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pre_infusion_pressure_buildup_time, pre_infusion_time):
-    print("buildup time: "+ str(pre_infusion_pressure_buildup_time))
-    print("pre time: "+ str(pre_infusion_time))
-    print(2)
-    relay_heater.value(0)
+    
+    # Turn solenoid on
     relay_solenoid.value(1)
     
-    relay_pump.value(1)
-    utime.sleep(2)
-    relay_pump.value(0)
+#     # build up pressure little bit before pre-infusion cycling
+#     relay_pump.value(1)
+#     utime.sleep(2)
+#     relay_pump.value(0)
     
-    for x in range(10):
+    for x in range(5):
         relay_pump.value(1)
         utime.sleep(0.1)
         relay_pump.value(0)
-        utime.sleep(0.8)
+        utime.sleep(0.9)
             
 
 def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor): #

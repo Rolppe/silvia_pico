@@ -26,10 +26,10 @@ relay_pump = Pin(13, Pin.OUT, value = 0)
 
 ######## Developement Settings ###########################
 
-fast_heatup_mode = False
+fast_heatup_mode = True
 pre_infusion_mode = True
 
-pre_infusion_pressure_buildup_time = 1
+pre_infusion_pressure_buildup_time = 0
 pre_infusion_time = 5 
 soft_pressure_release_time = 2 # 0 is off
 
@@ -138,9 +138,16 @@ while True:
     # If brew swith is on start brewing 
     if switch_brew.value():
         
+        ## Pre-infusion ##
         if pre_infusion_mode:
-            print(0)
+            
+            # Set heater of for safety
+            relay_heater.value(0)
+            
+            # Set mode to pre-infusion
             brew_data.set_mode('pre-infusion')
+            
+            # Start pre-infusion program function
             pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pre_infusion_pressure_buildup_time, pre_infusion_time)
         
         # Set mode to brewing
@@ -164,7 +171,7 @@ while True:
             utime.sleep(0.2)
             # brew_cycle_counter += 1 
             
-        # Set heater off after brewing for security reason
+        # Set heater off after brewing for safety
         relay_heater.value(0)
         
         # Set pump off

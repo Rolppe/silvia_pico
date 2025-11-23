@@ -145,7 +145,7 @@ while True:
             relay_heater.value(0)
             
             #If brew switch is being put of within third second, push water and skip preinfusion
-            utime.sleep(0.33)
+            utime.sleep(1)
             
             if not switch_brew.value():
                 relay_solenoid.value(1)

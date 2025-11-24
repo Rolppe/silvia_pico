@@ -31,7 +31,7 @@ pre_infusion_mode = True
 
 pre_infusion_pressure_buildup_time = 0
 pre_infusion_time = 5 
-soft_pressure_release_time = 2 # 0 is off
+soft_pressure_release_time = 0
 
 ##########################################################
 

@@ -3,11 +3,6 @@ def pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor):
     # Turn solenoid on
     relay_solenoid.value(1)
     
-#     # build up pressure little bit before pre-infusion cycling
-#     relay_pump.value(1)
-#     utime.sleep(2)
-#     relay_pump.value(0)
-    
     for x in range(5):
         relay_pump.value(1)
         utime.sleep(0.1)

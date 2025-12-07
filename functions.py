@@ -3,11 +3,12 @@ def pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor):
     # Turn solenoid on
     relay_solenoid.value(1)
     
-    for x in range(5):
-        relay_pump.value(1)
-        utime.sleep(0.1)
-        relay_pump.value(0)
-        utime.sleep(0.9)
+    for x in range(6):
+#         relay_pump.value(1)
+#         utime.sleep(0.1)
+#         relay_pump.value(0)
+#         utime.sleep(0.9)
+        utime.sleep(1)
             
 
 def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor): #

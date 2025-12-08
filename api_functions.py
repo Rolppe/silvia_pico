@@ -153,6 +153,21 @@ Content-type:text/html
 </html>"""
 
 
+# Function for creating HTML response
+def response_complete_HTML():
+    # Return HTML
+    return f"""HTTP/1.1 200 OK
+Content-type:text/html
+
+<html>
+  <head>
+    <title>Silvia Pico</title>
+  </head>
+  <body>
+    <h1>Setup Completed</h1>
+  </body>
+</html>"""
+
 #<!--Lisää päivitys testausta varten-->
 #    <meta http-equiv="refresh" content="2; url=http://192.168.0.99/">
 #     <p>

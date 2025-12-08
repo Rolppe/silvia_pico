@@ -146,7 +146,7 @@ def set_station(time_module, network_module, ssid, password):
     station.connect(ssid, password)
     
     # Define static ip address
-    station.ifconfig(('192.168.0.99', '255.255.255.0', '192.168.0.10', '8.0.8.0'))
+    station.ifconfig(('192.168.0.99', '255.255.255.0', '192.168.0.10', '8.8.8.8'))  #'8.0.8.0'))
     
     # Create object for ip address
     ip_address = station.ifconfig()[0]
@@ -208,44 +208,14 @@ def set_socket(socket,time_module):
         
         # If there's an error. Inform about it
         except OSError as e:
-            if e.errno == 98:
+            max_wait = 0
+            if e.errno == 98 and max_wait < 10:
                 print(f"Port {port} is already in use. Waiting for it to become available...")
-            
-            # Wait for one second
-            time_module.sleep(1)  
+                # Wait for one second
+                time_module.sleep(1)
+                max_wait += 1
     
     # Return socket
     return s
 
 
-# Function for creating HTML response
-def response_HTML(brew_data):
-
-    # Get settings from brew_data object
-    brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()
-
-    # Return HTML
-    return f"""HTTP/1.1 200 OK
-Content-type:text/html
-
-<html>
-  <head>
-    <title>Silvia Pico</title>
-  </head>
-  <body>
-    <h1>Brewing setup</h1>
-    <form action="/set_value" method="get">
-      Brewing temperature (&#8451;): <input type="number" name="brew_temperature" value = "{brew_temperature}">
-      <br><br>
-      Steam temperature (&#8451;): <input type="number" name="steam_temperature" value = "{steam_temperature}">
-      <br><br>
-      Pre-infusion time (s): <input type="number" name="pre_infusion_time" value = "{pre_infusion_time}">
-      <br><br>
-      Pre-heat time (s): <input type="number" name="pre_heat_time" value = "{pre_heat_time}">
-      <br><br>
-      Pressure soft-release time (s): <input type="number" name="pressure_soft_release_time" value = "{pressure_soft_release_time}">
-      <br><br>
-      <input type="submit" value="Set values and refresh" name="set_values_">
-    </form>
-  </body>
-</html>"""

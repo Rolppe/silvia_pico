@@ -3,11 +3,15 @@ import utime
 import json
 from machine import Pin
 import adafruit_max31865 as max31865
-import socket
+import socket 
 import network
 
+
+
+import select
+
 # Import functions, classes and data
-from api_functions import set_station, set_socket,  response_HTML, parse_request
+from api_functions import set_station, set_socket,  response_HTML, response_complete_HTML, parse_request
 from functions import save_settings, load_settings, print_values, fast_heatup, pre_infusion
 from classes import BrewData, HeatingSpeedCalculator, Thermostat, Sensor
 from secrets import ssid, password
@@ -53,50 +57,67 @@ set_station(utime, network, ssid, password)
 # Set Socket
 s = set_socket(socket, utime)
 
+
+
+#s.setblocking(False)
+
+
+
+
 # Set flag for indicating if settings are to be fetched
 api_flag = True
 
-# Function to api through wifi
-def network_settings_api():
-    
-    # If steam and water switches are on, then start broadcasting api
-    while (switch_steam.value() and switch_water.value()):
 
+def network_settings_api():
+    for x in range(2):
+       
         # Accept incoming communications
         try:
             conn, addr = s.accept()
-
+        
         # If error print it
         except Exception as e:
-            
+           
             # Print an error message
             print('an error occured while establishing connection:' + str(e))
-
-        # Read request and format it to string
-        request = conn.recv(1024)
-        request = str(request)
-
-        # Parse request and save it to brew data
-        parse_request(brew_data, request, save_settings, json)
-
+        
         # Create HTML response
-        response = response_HTML(brew_data)
+        if x == 0:
+            print("X=0")
+            # Read request
+            request = conn.recv(1024)
+
+            # Create response
+            response = response_HTML(brew_data)
+
+      
+        if x == 1:
+            print("X=1")
+            # Read request and format it to string
+            request = conn.recv(1024)
+            request = str(request)
+            # Parse request and save it to brew data
+            parse_request(brew_data, request, save_settings, json)
+            # Create response
+            response = response_complete_HTML()
 
         # Broadcast HTML response
         conn.send(response)
-
+        
         # Close connection
         conn.close()
-
         # Nullify conn variable
         conn = None
-
         # Set up small delay before next handling
         utime.sleep(1)
-    
+        
+    # When both switches are off return to main loop
+    while switch_steam.value() or switch_water.value():
+        utime.sleep(1)
+
 
 # If steam switch is off and fast heatup mode is on, set mode for fast heatup and fill boiler
-if not switch_steam.value() and fast_heatup_mode:
+if switch_steam.value() and fast_heatup_mode:
     brew_data.set_mode('fast_heatup')
     fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor)
 
@@ -106,7 +127,6 @@ thermostat = Thermostat()
 #### MAIN LOOP ####
 
 while True:
-    
     # Get brew settings from brew_data object
     if api_flag:
         brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()

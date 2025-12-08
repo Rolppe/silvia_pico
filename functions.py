@@ -4,7 +4,7 @@ def pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor):
     relay_solenoid.value(1)
     
     for x in range(6):
-        if x < 4:
+        if x < 3:
             utime.sleep(1)
         else:
             relay_pump.value(1)

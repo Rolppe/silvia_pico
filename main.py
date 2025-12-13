@@ -197,9 +197,9 @@ while True:
                 # Run brew cycle with heat cycling as long as brew switch is on
                 while(switch_brew.value()):
                     relay_heater.value(1)
-                    utime.sleep(0.4)
+                    utime.sleep(0.125)
                     relay_heater.value(0)
-                    utime.sleep(0.2)
+                    utime.sleep(0.05)
                     # brew_cycle_counter += 1 
                     
                 # Set heater off after brewing for safety

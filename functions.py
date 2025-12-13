@@ -2,15 +2,22 @@ def pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor):
     
     # Turn solenoid on
     relay_solenoid.value(1)
+    relay_pump.value(1)
+    relay_heater.value(1)
+    utime.sleep(0.4)
+    relay_heater.value(0)
+    utime.sleep(0.6)
+    relay_pump.value(0)
+    utime.sleep(0.9)
     
-    # Time for soft preinfusion
-    utime.sleep(2)
-    
-    for x in range(10):
+    for x in range(6):
+
         relay_pump.value(1)
+        relay_heater.value(1)
         utime.sleep(0.1)
         relay_pump.value(0)
-        utime.sleep((x/10))
+        relay_heater.value(0)
+        utime.sleep(0.9)
 
             
 

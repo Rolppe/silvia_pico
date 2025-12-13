@@ -1,7 +1,7 @@
 # Import libraries
 import utime
 import json
-from machine import Pin
+from machine import Pin, ADC
 import adafruit_max31865 as max31865
 import socket 
 import network
@@ -13,7 +13,7 @@ import select
 # Import functions, classes and data
 from api_functions import set_station, set_socket,  response_HTML, response_complete_HTML, parse_request
 from functions import save_settings, load_settings, print_values, fast_heatup, pre_infusion
-from classes import BrewData, HeatingSpeedCalculator, Thermostat, Sensor
+from classes import BrewData, HeatingSpeedCalculator, Thermostat, Sensor, PressureMonitor
 from secrets import ssid, password
 
 
@@ -31,7 +31,7 @@ relay_pump = Pin(13, Pin.OUT, value = 0)
 ######## Developement Settings ###########################
 
 fast_heatup_mode = True
-pre_infusion_mode = True
+pre_infusion_mode = False
 
 pre_infusion_pressure_buildup_time = 0
 pre_infusion_time = 5 
@@ -51,17 +51,17 @@ heating_speed_calculator = HeatingSpeedCalculator(utime)
 # Load settings (to brew_data object)
 load_settings(json, brew_data)
 
+# Create class for pressure monitoring
+pressure_monitor = PressureMonitor(Pin, ADC, utime)
+
+
 # Connect to Wifi
 set_station(utime, network, ssid, password)
 
 # Set Socket
 s = set_socket(socket, utime)
 
-
-
 #s.setblocking(False)
-
-
 
 
 # Set flag for indicating if settings are to be fetched
@@ -181,39 +181,42 @@ while True:
                 # Start pre-infusion program function
                 pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor)
             
-                # Set mode to brewing
-                brew_data.set_mode('brew')
-                
-                # Initialize counter for brewing cycles
-                brew_cycle_counter = 0
-                
-                # Set solenoid an on for brewing
-                relay_solenoid.value(1)
-                
-                # Set pump on for brewing
-                relay_pump.value(1)
-                
-                ## BREW LOOP ##
-                # Run brew cycle with heat cycling as long as brew switch is on
-                while(switch_brew.value()):
-                    relay_heater.value(1)
-                    utime.sleep(0.125)
-                    relay_heater.value(0)
-                    utime.sleep(0.05)
-                    # brew_cycle_counter += 1 
-                    
-                # Set heater off after brewing for safety
-                relay_heater.value(0)
-                
-                # Set pump off
-                relay_pump.value(0)
-                
-                ## SLOW PRESSURE RELEASE ##
-                utime.sleep(soft_pressure_release_time)
-                    
-                
-                # Set soleinoid off
-                relay_solenoid.value(0)
+    # Set mode to brewing
+    brew_data.set_mode('brew')
+    
+    # Initialize counter for brewing cycles
+    brew_cycle_counter = 0
+    
+    # Set solenoid an on for brewing
+    relay_solenoid.value(1)
+    
+    # Set pump on for brewing
+    relay_pump.value(1)
+    
+    ## BREW LOOP ##
+    # Run brew cycle with heat cycling as long as brew switch is on nad measure pressure on brakes
+    while(switch_brew.value()):
+        
+        # Set heater relay on
+        relay_heater.value(1)
+        
+        # Monitor pressure for two full measurements
+        pressure_monitor.get_pressure_while(0.34)
+        
+        # Set heater relay off
+        relay_heater.value(0)
+        
+        # Monitor pressure for one full measurement
+        pressure_monitor.get_pressure_while(0.17)
+    
+    # Set pump off
+    relay_pump.value(0)
+    
+    ## SLOW PRESSURE RELEASE ##
+    utime.sleep(soft_pressure_release_time)
+        
+    # Set soleinoid off
+    relay_solenoid.value(0)
 
 
     ### HOT WATER MODE AND API MODE ###       

@@ -15,7 +15,6 @@ relay_heater = Pin(11, Pin.OUT, value = 0)
 relay_solenoid = Pin(12, Pin.OUT, value = 0)
 relay_pump = Pin(13, Pin.OUT, value = 0)
 
-#cycle_resolution = 6000
 number_of_cycles = 10 # One cycle = 1Hz = 0.017second
 pressure_buildup_time = 0
 

@@ -4,19 +4,24 @@ def pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor):
     relay_solenoid.value(1)
     relay_pump.value(1)
     relay_heater.value(1)
+    # Paineen mittaus tähän sleepin tilalle
     utime.sleep(0.4)
     relay_heater.value(0)
+    # Paineen mittaus tähän sleepin tilalle
     utime.sleep(0.6)
     relay_pump.value(0)
+    # Paineen mittaus tähän sleepin tilalle
     utime.sleep(0.9)
     
     for x in range(6):
 
         relay_pump.value(1)
         relay_heater.value(1)
+        # Paineen mittaus tähän sleepin tilalle
         utime.sleep(0.1)
         relay_pump.value(0)
         relay_heater.value(0)
+        # Paineen mittaus tähän sleepin tilalle
         utime.sleep(0.9)
 
             

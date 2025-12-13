@@ -122,7 +122,108 @@ class BrewData:
         return pressure_soft_release_time
 
 
+##### Class for pressure monitoring #####
+class PressureMonitor:
+    def __init__(self, Pin_module, ADC_module, utime_module):
+        
+        self.ADC = ADC_module
+        self.utime = utime_module
+        self.number_of_cycles = 10
+        self.time_start = 0
+        self.pressure_sensor = ADC_module(Pin_module(28))
+
+        
+        
+    def get_pressure(self):
+        
+        pressure_sensor = self.pressure_sensor
+        #time_between_measurements = 0.017 / cycle_resolution # Cycle time with 60Hz pump is 0.017s.
+        #utime = self.utime
+        #number_of_cycles = self.number_of_cycles
+        pressure = 0
+        pressure_cycle_values = []
+        pressure_measurements_values = []
+        
+        cycle_counter = 0
+        
+        for x in range(number_of_cycles):
+            start = utime.ticks_us()
+            end = utime.ticks_add(start, 17000) # once cycle
+            
+            while utime.ticks_diff(end, utime.ticks_us()) > 0:
+                pressure_sensor_value = pressure_sensor.read_u16()
+                pressure_measurements_values.append(pressure_sensor_value)
+                cycle_counter += 1
+                
+            cycle_average = round((sum(pressure_measurements_values) / cycle_counter))
+            pressure_cycle_values.append(cycle_average)
+            cycle_counter = 0
+            
+            pressure_measurements_values = []        
+        
+        pressure = round((sum(pressure_cycle_values) / len(pressure_cycle_values)))
+        
+        return pressure
+    
+    
+    def get_pressure_while(self, measure_time):
+    
+    
+        pressure_sensor = self.pressure_sensor
+        utime = self.utime
+        pressure = 0
+        number_of_cycles = self.number_of_cycles
+        pressure_cycle_values = []
+        pressure_measurements_values = []
+        
+        # Calculate time used for measurements 
+        count_of_full_measurements = measure_time / (0.017 * number_of_cycles) # Later number of cycles could be calculated based of time given
+        
+        # Make for loop timed for whole measurement
+        for x in range(count_of_full_measurements):
+            
+            # Make for loop for averaging measurement values
+            for y in range(number_of_cycles):
+                
+                start = utime.ticks_us()
+                end = utime.ticks_add(start, 17000) # one cycle == one Hz
+                cycle_counter = 0
+                # Make timed cycle for collecting sensor values
+                while utime.ticks_diff(end, utime.ticks_us()) > 0:
+                    
+                    # Read value of the sensor
+                    pressure_sensor_value = pressure_sensor.read_u16()
+                    
+                    # Add value to lisr
+                    pressure_measurements_values.append(pressure_sensor_value)
+                    
+                    #increment cycle counter
+                    cycle_counter += 1
+                
+                # Calculate average for one cycle
+                cycle_average = round(sum(pressure_measurements_values) / cycle_counter)
+                
+                # Add cycle average to list
+                pressure_cycle_values.append(cycle_average)
+
+                # Reset measurement list
+                pressure_measurements_values.clear()
+                
+            # Calculate pressure value from averages
+            pressure = round(sum(pressure_cycle_values) / len(pressure_cycle_values))
+            
+            # Reset pressure_cycle_values list
+            pressure_cycle_values.clear()
+            
+            # Convert pressure to bar
+            pressure_bar = round((pressure * 0.000314936 - 3.522929),1)
+            
+            # Print pressure
+            print("Pressure: " +str(pressure_bar) +" Bar")
+    
+
 #### Class for thermostat ####  
+
 class Thermostat:
     def __init__(self):
         self.cycle_count = 0
@@ -275,7 +376,7 @@ class Sensor:
         # Create value for sifting bias of the temperature
         temperature_bias = 0 # -5.0
         
-        # Get 7 temperature samples to array and calculate average to avoid the noise
+        # Get 7 temperature samples to list and calculate average to avoid the noise
         fault_counter = 0
         temp = self.sensor.temperature
         

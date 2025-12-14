@@ -30,8 +30,8 @@ relay_pump = Pin(13, Pin.OUT, value = 0)
 
 ######## Developement Settings ###########################
 
-fast_heatup_mode = True
-pre_infusion_mode = False
+fast_heatup_mode = False
+pre_infusion_mode = True
 
 pre_infusion_pressure_buildup_time = 0
 pre_infusion_time = 5 
@@ -179,7 +179,7 @@ while True:
                 brew_data.set_mode('pre-infusion')
                 
                 # Start pre-infusion program function
-                pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor)
+                pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pressure_monitor)
             
     # Set mode to brewing
     brew_data.set_mode('brew')

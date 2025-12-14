@@ -128,7 +128,7 @@ class PressureMonitor:
         
         self.ADC = ADC_module
         self.utime = utime_module
-        self.number_of_cycles = 10
+        self.number_of_cycles = 1
         self.time_start = 0
         self.pressure_sensor = ADC_module(Pin_module(28))
 
@@ -137,33 +137,32 @@ class PressureMonitor:
     def get_pressure(self):
         
         pressure_sensor = self.pressure_sensor
-        #time_between_measurements = 0.017 / cycle_resolution # Cycle time with 60Hz pump is 0.017s.
-        #utime = self.utime
-        #number_of_cycles = self.number_of_cycles
+        utime = self.utime
         pressure = 0
-        pressure_cycle_values = []
         pressure_measurements_values = []
         
+        start = utime.ticks_us()
+        end = utime.ticks_add(start, 17000) # one cycle == one Hz
         cycle_counter = 0
-        
-        for x in range(number_of_cycles):
-            start = utime.ticks_us()
-            end = utime.ticks_add(start, 17000) # once cycle
+        # Make timed cycle for collecting sensor values
+        while utime.ticks_diff(end, utime.ticks_us()) > 0:
             
-            while utime.ticks_diff(end, utime.ticks_us()) > 0:
-                pressure_sensor_value = pressure_sensor.read_u16()
-                pressure_measurements_values.append(pressure_sensor_value)
-                cycle_counter += 1
-                
-            cycle_average = round((sum(pressure_measurements_values) / cycle_counter))
-            pressure_cycle_values.append(cycle_average)
-            cycle_counter = 0
+            # Read value of the sensor
+            pressure_sensor_value = pressure_sensor.read_u16()
             
-            pressure_measurements_values = []        
+            # Add value to lisr
+            pressure_measurements_values.append(pressure_sensor_value)
+            
+            #increment cycle counter
+            cycle_counter += 1
         
-        pressure = round((sum(pressure_cycle_values) / len(pressure_cycle_values)))
+        # Calculate average for one cycle
+        cycle_average = round(sum(pressure_measurements_values) / cycle_counter)
+            
+        # Convert pressure to bar
+        pressure_bar = round((cycle_average * 0.000314936 - 3.522929),1)
         
-        return pressure
+        return pressure_bar
     
     
     def get_pressure_while(self, measure_time):

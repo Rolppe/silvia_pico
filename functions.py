@@ -1,4 +1,4 @@
-def pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pressure_monitor):
+def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, sensor, pressure_monitor):
     
     print("start")
     relay_solenoid.value(1)
@@ -7,14 +7,14 @@ def pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pressu
 
 
     # Lift pressure before timing
-    while pressure_monitor.get_pressure() < 2.4:
+    while pressure_monitor.get_pressure() < 2.4 and switch_brew.value():
         pass
 
     start = utime.ticks_ms()
     end = utime.ticks_add(start, 5000)       
         
     # Create timed preinfusion loop
-    while utime.ticks_diff(end, utime.ticks_ms()) > 0:
+    while utime.ticks_diff(end, utime.ticks_ms()) > 0 and switch_brew.value():
         if pressure_monitor.get_pressure() < 2.5:
             relay_pump.value(1)
         else:

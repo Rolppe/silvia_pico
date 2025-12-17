@@ -18,24 +18,26 @@ from secrets import ssid, password
 
 
 # Set the input pins for switches
-switch_brew = Pin(7, Pin.IN, Pin.PULL_DOWN)
-switch_steam = Pin(9, Pin.IN, Pin.PULL_DOWN)
-switch_water = Pin(8, Pin.IN, Pin.PULL_DOWN)
+switch_brew = Pin(7, Pin.IN, Pin.PULL_DOWN) # 7
+switch_steam = Pin(9, Pin.IN, Pin.PULL_DOWN) #9
+switch_water = Pin(8, Pin.IN, Pin.PULL_DOWN) # 8
 
 # Set the output pins for relays
 relay_heater = Pin(11, Pin.OUT, value = 0)
-relay_solenoid = Pin(12, Pin.OUT, value = 0)
-relay_pump = Pin(13, Pin.OUT, value = 0)
+relay_solenoid = Pin(12, Pin.OUT, value = 0) 
+relay_pump = Pin(13, Pin.OUT, value = 0) 
 
 
 ######## Developement Settings ###########################
 
 fast_heatup_mode = False
 pre_infusion_mode = True
+after_brew_pressure_drain = True
 
 pre_infusion_pressure_buildup_time = 0
 pre_infusion_time = 5 
 soft_pressure_release_time = 0
+after_brew_pressure_drain = True
 
 ##########################################################
 
@@ -179,45 +181,52 @@ while True:
                 brew_data.set_mode('pre-infusion')
                 
                 # Start pre-infusion program function
-                pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pressure_monitor)
+                pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, sensor, pressure_monitor)
             
-    # Set mode to brewing
-    brew_data.set_mode('brew')
-    
-    # Initialize counter for brewing cycles
-    brew_cycle_counter = 0
-    
-    # Set solenoid an on for brewing
-    relay_solenoid.value(1)
-    
-    # Set pump on for brewing
-    relay_pump.value(1)
-    
-    ## BREW LOOP ##
-    # Run brew cycle with heat cycling as long as brew switch is on nad measure pressure on brakes
-    while(switch_brew.value()):
+        # Set mode to brewing
+        brew_data.set_mode('brew')
         
-        # Set heater relay on
-        relay_heater.value(1)
+        # Initialize counter for brewing cycles
+        brew_cycle_counter = 0
         
-        # Monitor pressure for two full measurements
-        pressure_monitor.get_pressure_while(0.34)
+        # Set solenoid an on for brewing
+        relay_solenoid.value(1)
         
-        # Set heater relay off
-        relay_heater.value(0)
-        
-        # Monitor pressure for one full measurement
-        pressure_monitor.get_pressure_while(0.17)
+        # Set pump on for brewing
+        relay_pump.value(1)
     
-    # Set pump off
-    relay_pump.value(0)
-    
-    ## SLOW PRESSURE RELEASE ##
-    utime.sleep(soft_pressure_release_time)
+        ## BREW LOOP ##
+        # Run brew cycle with heat cycling as long as brew switch is on nad measure pressure on brakes
+        while(switch_brew.value()):
+            
+            # Set heater relay on
+            relay_heater.value(1)
+            
+            # Monitor pressure for two full measurements
+            pressure_monitor.get_pressure_while(0.34)
+            
+            # Set heater relay off
+            relay_heater.value(0)
+            
+            # Monitor pressure for one full measurement
+            pressure_monitor.get_pressure_while(0.17)
         
-    # Set soleinoid off
-    relay_solenoid.value(0)
-
+        # Set pump off
+        relay_pump.value(0)
+        
+        ## SLOW PRESSURE RELEASE ##
+        utime.sleep(soft_pressure_release_time)
+            
+        # Set soleinoid off
+        relay_solenoid.value(0)
+        
+        if after_brew_pressure_drain:
+            for i in range(5):
+            utime.sleep(0.5)
+            relay_solenoid.value(1)
+            utime.sleep(0.5)
+            relay_solenoid.value(0)
+            
 
     ### HOT WATER MODE AND API MODE ###       
     

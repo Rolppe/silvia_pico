@@ -32,7 +32,7 @@ relay_pump = Pin(13, Pin.OUT, value = 0)
 
 fast_heatup_mode = False
 pre_infusion_mode = True
-after_brew_pressure_drain = True
+after_brew_pressure_drain = False
 
 pre_infusion_pressure_buildup_time = 0
 pre_infusion_time = 5 
@@ -221,11 +221,14 @@ while True:
         relay_solenoid.value(0)
         
         if after_brew_pressure_drain:
-            for i in range(5):
-            utime.sleep(0.5)
-            relay_solenoid.value(1)
-            utime.sleep(0.5)
-            relay_solenoid.value(0)
+            pressure = pressure_monitor.get_pressure()
+            while pressure > 1.5:
+                print("Pressure: " + str(pressure) + " bar")
+                utime.sleep(0.5)
+                relay_solenoid.value(1)
+                utime.sleep(0.5)
+                relay_solenoid.value(0)
+                pressure = pressure_monitor.get_pressure()
             
 
     ### HOT WATER MODE AND API MODE ###       

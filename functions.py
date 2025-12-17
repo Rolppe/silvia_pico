@@ -1,53 +1,38 @@
+# Funktion for preinfusion
 def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, sensor, pressure_monitor):
     
-    print("start")
+    # Open solenoid for water to flow to grouphead
     relay_solenoid.value(1)
+    
+    # If theres a pressure in system, let stabilize to pre-infusion pressure
+    while pressure_monitor.get_pressure() > 2.4:
+       pass
+    
+    # Start building pre-infusion pressure by turning pump on.
     relay_pump.value(1)
 
-
-
-    # Lift pressure before timing
+    # Keep pump on till almost pre-infusion pressure, just a bit under to prevent pressure overshooting
     while pressure_monitor.get_pressure() < 2.4 and switch_brew.value():
         pass
-
+    
+    # Let pressure stabilize
+    utime.sleep(0.1)
+    
+    # Create timer for preinfusion
     start = utime.ticks_ms()
     end = utime.ticks_add(start, 5000)       
         
     # Create timed preinfusion loop
     while utime.ticks_diff(end, utime.ticks_ms()) > 0 and switch_brew.value():
+        
+        # if 
         if pressure_monitor.get_pressure() < 2.5:
             relay_pump.value(1)
+        # if pressure has reached preinfusion pressure, pause the pump
         else:
             relay_pump.value(0)
         print(pressure_monitor.get_pressure())
-    print("end")
 
-#     # Turn solenoid on
-#     relay_solenoid.value(1)
-#     relay_pump.value(1)
-#     relay_heater.value(1)
-#     pressure_monitor.get_pressure_while(0.34)
-#     #utime.sleep(0.4)
-#     relay_heater.value(0)
-#     pressure_monitor.get_pressure_while(0.51)
-#     #utime.sleep(0.6)
-#     relay_pump.value(0)
-#     pressure_monitor.get_pressure_while(0.85)
-#     #utime.sleep(0.9)
-#     
-#     for x in range(6):
-# 
-#         relay_pump.value(1)
-#         relay_heater.value(1)
-#         # Paineen mittaus tähän sleepin tilalle
-#         #utime.sleep(0.17)
-#         pressure_monitor.get_pressure_while(0.17)
-#         relay_pump.value(0)
-#         relay_heater.value(0)
-#         # Paineen mittaus tähän sleepin tilalle
-#         #utime.sleep(0.9)
-#         pressure_monitor.get_pressure_while(1.02)
-            
 
 def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor): #
         

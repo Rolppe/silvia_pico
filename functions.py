@@ -5,14 +5,14 @@ def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, s
     relay_solenoid.value(1)
     
     # If theres a pressure in system, let stabilize to pre-infusion pressure
-    while pressure_monitor.get_pressure() > 2.4:
+    while pressure_monitor.get_pressure() > 1.9:
        pass
     
     # Start building pre-infusion pressure by turning pump on.
     relay_pump.value(1)
 
     # Keep pump on till almost pre-infusion pressure, just a bit under to prevent pressure overshooting
-    while pressure_monitor.get_pressure() < 2.4 and switch_brew.value():
+    while pressure_monitor.get_pressure() < 1.9 and switch_brew.value():
         pass
     
     # Let pressure stabilize
@@ -26,7 +26,7 @@ def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, s
     while utime.ticks_diff(end, utime.ticks_ms()) > 0 and switch_brew.value():
         
         # if 
-        if pressure_monitor.get_pressure() < 2.5:
+        if pressure_monitor.get_pressure() < 2.0:
             relay_pump.value(1)
         # if pressure has reached preinfusion pressure, pause the pump
         else:

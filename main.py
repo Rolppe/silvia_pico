@@ -194,22 +194,42 @@ while True:
         
         # Set pump on for brewing
         relay_pump.value(1)
-    
+        
+        start_time = utime.ticks_ms()
+        last_print_time = start_time
+        
         ## BREW LOOP ##
         # Run brew cycle with heat cycling as long as brew switch is on nad measure pressure on brakes
         while(switch_brew.value()):
             
-            # Set heater relay on
-            relay_heater.value(1)
+            elapsed_ms = utime.ticks_diff(utime.ticks_ms(), start_time)
+            current_seconds = elapsed_ms // 1000
             
-            # Monitor pressure for two full measurements
-            pressure_monitor.get_pressure_while(0.34)
+            # cycle heater of for 0.5ms and on 0.1s
+            if (elapsed_ms % 150) < 100:
+                # Set heater relay off
+                relay_heater.value(0)
+            else:
+                # Set heater relay on
+                relay_heater.value(1)
+                
+            # Get pressure
+            pressure = pressure_monitor.get_pressure()
             
-            # Set heater relay off
-            relay_heater.value(0)
+            # Print pressure 4 times in second
+            if utime.ticks_diff(utime.ticks_ms(), last_print_time) >= 250:
+                print("pressure: " +str(pressure) +" bar")
+                last_print_time = utime.ticks_ms()
+            
+            if pressure < 8:
+                relay_pump.value(1)
+            else:
+                relay_pump.value(0)
+            
             
             # Monitor pressure for one full measurement
             pressure_monitor.get_pressure_while(0.17)
+            utime.sleep(0.05)
         
         # Set pump off
         relay_pump.value(0)

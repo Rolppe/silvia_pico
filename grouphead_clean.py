@@ -7,6 +7,6 @@ relay_solenoid = Pin(12, Pin.OUT, value = 0)
 relay_pump = Pin(13, Pin.OUT, value = 0)
 
 
-    start = utime.ticks_us()
-    end = utime.ticks_add(start, 17000)
-    while utime.ticks_diff(end, utime.ticks_us()) > 0:
+#     start = utime.ticks_us()
+#     end = utime.ticks_add(start, 17000)
+#     while utime.ticks_diff(end, utime.ticks_us()) > 0:

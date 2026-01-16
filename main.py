@@ -18,14 +18,15 @@ from secrets import ssid, password
 
 
 # Set the input pins for switches
-switch_brew = Pin(7, Pin.IN, Pin.PULL_DOWN) # 7
-switch_steam = Pin(9, Pin.IN, Pin.PULL_DOWN) #9
-switch_water = Pin(8, Pin.IN, Pin.PULL_DOWN) # 8
+switch_brew = Pin(7, Pin.IN, Pin.PULL_DOWN) # Pin(7, Pin.IN, Pin.PULL_DOWN)
+switch_water = Pin(8, Pin.IN, Pin.PULL_DOWN) # Pin(8, Pin.IN, Pin.PULL_DOWN)
+switch_steam = Pin(9, Pin.IN, Pin.PULL_DOWN) # Pin(9, Pin.IN, Pin.PULL_DOWN
+
 
 # Set the output pins for relays
-relay_heater = Pin(11, Pin.OUT, value = 0)
+relay_pump = Pin(11, Pin.OUT, value = 0) ## 11 12 13
 relay_solenoid = Pin(12, Pin.OUT, value = 0) 
-relay_pump = Pin(13, Pin.OUT, value = 0) 
+relay_heater = Pin(13, Pin.OUT, value = 0)
 
 
 ######## Developement Settings ###########################
@@ -37,7 +38,8 @@ after_brew_pressure_drain = False
 pre_infusion_pressure_buildup_time = 0
 pre_infusion_time = 5 
 soft_pressure_release_time = 0
-after_brew_pressure_drain = True
+
+brew_pressure = 8
 
 ##########################################################
 
@@ -53,7 +55,7 @@ heating_speed_calculator = HeatingSpeedCalculator(utime)
 # Load settings (to brew_data object)
 load_settings(json, brew_data)
 
-# Create class for pressure monitoring
+# Create class for pressure_barmonitoring
 pressure_monitor = PressureMonitor(Pin, ADC, utime)
 
 
@@ -199,7 +201,7 @@ while True:
         last_print_time = start_time
         
         ## BREW LOOP ##
-        # Run brew cycle with heat cycling as long as brew switch is on nad measure pressure on brakes
+        # Run brew cycle with heat cycling as long as brew switch is on
         while(switch_brew.value()):
             
             elapsed_ms = utime.ticks_diff(utime.ticks_ms(), start_time)
@@ -214,41 +216,48 @@ while True:
                 relay_heater.value(1)
                 
             # Get pressure
-            pressure = pressure_monitor.get_pressure()
+            pressure_bar = pressure_monitor.get_pressure()
             
-            # Print pressure 4 times in second
+            
+#           # Get flow
+#            flow_ml_min =  -4.03 * pressure_bar **2 + 14.15 * pressure_bar + 658.81
+            
+            
+            
+            # Print pressure_bar4 times in second
             if utime.ticks_diff(utime.ticks_ms(), last_print_time) >= 250:
-                print("pressure: " +str(pressure) +" bar")
+                print("pressure: " +str(pressure_bar) +" bar")
                 last_print_time = utime.ticks_ms()
             
-            if pressure < 8:
+            
+            if pressure_bar < brew_pressure -1:
                 relay_pump.value(1)
+            elif pressure_bar < brew_pressure:
+                relay_pump.value(1)
+                utime.sleep(0.005)
+                relay_pump.value(0)
             else:
                 relay_pump.value(0)
             
-            
-            # Monitor pressure for one full measurement
-            pressure_monitor.get_pressure_while(0.17)
-            utime.sleep(0.05)
         
         # Set pump off
         relay_pump.value(0)
         
-        ## SLOW PRESSURE RELEASE ##
+        ## SLOW pressure_barRELEASE ##
         utime.sleep(soft_pressure_release_time)
             
         # Set soleinoid off
         relay_solenoid.value(0)
         
         if after_brew_pressure_drain:
-            pressure = pressure_monitor.get_pressure()
-            while pressure > 1.5:
-                print("Pressure: " + str(pressure) + " bar")
+            pressure_bar = pressure_monitor.get_pressure()
+            while pressure_bar > 1.5:
+                print("Pressure: " + str(pressure_bar) + " bar")
                 utime.sleep(0.5)
                 relay_solenoid.value(1)
                 utime.sleep(0.5)
                 relay_solenoid.value(0)
-                pressure = pressure_monitor.get_pressure()
+                pressure_bar = pressure_monitor.get_pressure()
             
 
     ### HOT WATER MODE AND API MODE ###       

@@ -1,3 +1,79 @@
+# Class for inverting Pins
+# class InvertedPin(Pin):
+#     def value(self, *args, **kwargs):
+#         val = super().value(*args, **kwargs)
+#         return 0 if val == 1 else 1 if val is not None else None
+
+
+# Function for getting ratio for pump on and off states.
+class PumpRatioCalculator:
+    def __init__(self,utime_module):
+        self.utime = utime_module
+        self.pump_ratio = 0
+        self.pump_start_timer = 0
+        self.pump_stop_timer = 0
+        self.pump_on_time = 0
+        self.pump_off_time = 0
+        self.pump_is_on = False
+        
+    # Function to start timing brew
+    def start(self):
+        self.pump_stop_timer = self.utime.ticks_ms() # Start calculating pump off state
+        self.pump_is_on = False
+        
+    # Function to start timing pump
+    def set_pump_on(self):
+        self.pump_is_on = True
+        self.pump_start_timer = self.utime.ticks_ms() # Start calculating pump on state 
+        self.pump_off_time += self.utime.ticks_diff(self.utime.ticks_ms(), self.pump_stop_timer)
+        
+    # Function to stop timing pump
+    def set_pump_off(self):
+        self.pump_is_on = False
+        self.pump_stop_timer = self.utime.ticks_ms() # Start calculating pump off state
+        self.pump_on_time += self.utime.ticks_diff(self.utime.ticks_ms(), self.pump_start_timer)
+        
+    # Function to get ratio
+    def get_ratio(self):
+        
+        # If pump is on, add last bit to pump_on_time
+        if self.pump_is_on:
+            self.pump_on_time += self.utime.ticks_diff(self.utime.ticks_ms(), self.pump_start_timer)
+            self.pump_start_timer = self.utime.ticks_ms()
+        
+        # If pump is off, add last bit to pump_off_time
+        else:
+            self.pump_off_time += self.utime.ticks_diff(self.utime.ticks_ms(), self.pump_stop_timer)
+            self.pump_stop_timer = self.utime.ticks_ms()
+                
+ 
+        
+        if self.pump_on_time + self.pump_off_time == 0:
+            return 0
+        else:
+            self.pump_ratio = round(self.pump_on_time / (self.pump_on_time + self.pump_off_time) * 100, 2)
+            self.pump_on_time = 0
+            self.pump_off_time = 0
+            return self.pump_ratio
+        
+        
+        
+        
+        
+class BrewStatsLogger:
+    def __init__(self_utime):
+        self.pressure = 0
+        self.start_time = 0
+        self.boiler_temperature = 0
+        self.pump_ratio = 0
+        self.resolution = 1 # times in second
+        self.file_name = "brew_log.txt"
+        
+        
+        
+        
+        
+        
 ###### Class to share data between the cores ####
 class BrewData:
     def __init__(self, brew_switch, steam_switch, water_switch):

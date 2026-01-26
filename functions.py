@@ -1,19 +1,41 @@
 # Funktion for preinfusion
-def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, sensor, pressure_monitor):
+def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, sensor, pressure_monitor, ble_handler):
     
     # Open solenoid for water to flow to grouphead
     relay_solenoid.value(1)
     
     # If theres a pressure in system, let stabilize to pre-infusion pressure
     while pressure_monitor.get_pressure() > 1.9:
-       pass
+            
+        pressure_bar = pressure_monitor.get_pressure()
+        # Read pt100 sensor temperature
+        boiler_temperature = sensor.read_temperature()
+        
+        if ble_handler._connections:
+            pressure_bar = pressure_monitor.get_pressure()  # Read pressure again if needed
+            data = {
+                'temp': boiler_temperature,
+                'pressure': pressure_bar
+            }
+            ble_handler.send_data(data)
     
     # Start building pre-infusion pressure by turning pump on.
     relay_pump.value(1)
 
     # Keep pump on till almost pre-infusion pressure, just a bit under to prevent pressure overshooting
     while pressure_monitor.get_pressure() < 1.9 and switch_brew.value():
-        pass
+            
+        pressure_bar = pressure_monitor.get_pressure()
+        # Read pt100 sensor temperature
+        boiler_temperature = sensor.read_temperature()
+        
+        if ble_handler._connections:
+            pressure_bar = pressure_monitor.get_pressure()  # Read pressure again if needed
+            data = {
+                'temp': boiler_temperature,
+                'pressure': pressure_bar
+            }
+            ble_handler.send_data(data)
     
     # Let pressure stabilize
     utime.sleep(0.1)
@@ -24,6 +46,23 @@ def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, s
         
     # Create timed preinfusion loop
     while utime.ticks_diff(end, utime.ticks_ms()) > 0 and switch_brew.value():
+        
+        
+        
+        pressure_bar = pressure_monitor.get_pressure()
+        # Read pt100 sensor temperature
+        boiler_temperature = sensor.read_temperature()
+        
+        if ble_handler._connections:
+            pressure_bar = pressure_monitor.get_pressure()  # Read pressure again if needed
+            data = {
+                'temp': boiler_temperature,
+                'pressure': pressure_bar
+            }
+            ble_handler.send_data(data)
+        
+        
+        
         
         # if 
         if pressure_monitor.get_pressure() < 2.0:
@@ -155,87 +194,6 @@ def load_settings(json_module, brew_data):
     return True
 
 
- # Funktion for WiFi connection creation
-def set_station(time_module, network_module, ssid, password):
-    
-    # Create station module
-    station = network_module.WLAN(network_module.STA_IF)
-    station.active(True)
-    
-    # Set wifi SSID and Password
-    station.connect(ssid, password)
-    
-    # Define static ip address
-    station.ifconfig(('192.168.0.99', '255.255.255.0', '192.168.0.10', '8.8.8.8'))  #'8.0.8.0'))
-    
-    # Create object for ip address
-    ip_address = station.ifconfig()[0]
-    
-    # Set maxium wait time for 5 seconds 
-    max_wait = 5
-    
-    # Create connection wait loop
-    while max_wait > 0:
-        
-        # If connectiod succeed or failed: brake the loop
-        if station.status() < 0 or station.status() >= 3:
-            break
-        
-        # Decrease 1 second from waiting time
-        max_wait -= 1
-        
-        # Print waiting status
-        print('waiting for connection...')
-        
-        # Set delay for one second
-        time_module.sleep(1)
-        
-    # If there's a error in connection: return False and inform from error
-    if station.isconnected == False:
-        raise RuntimeError('network connection failed')
-        return False
-    
-    # Otherwise inform from succesful connection and show link to ip in browser and return True
-    else:
-        print('Connected')
-        print('Käynnistetty. Mene selaimella <a href="http://{0}" target="_blank">{0}</a>'.format(ip_address))
-        status = station.ifconfig()
-        print('ip = ' , status[0])
-        return True
 
-
-# Function for two ways connection
-def set_socket(socket,time_module):
-    
-    # Create socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    
-    # Clear port
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    
-    # Set port to 80
-    port = 80
-
-    # Create loop for binding
-    while True:
-        try:
-            # Bind port to socket
-            s.bind(('', port))
-            s.listen(5)
-            
-            # Break the loop
-            break
-        
-        # If there's an error. Inform about it
-        except OSError as e:
-            max_wait = 0
-            if e.errno == 98 and max_wait < 10:
-                print(f"Port {port} is already in use. Waiting for it to become available...")
-                # Wait for one second
-                time_module.sleep(1)
-                max_wait += 1
-    
-    # Return socket
-    return s
 
 

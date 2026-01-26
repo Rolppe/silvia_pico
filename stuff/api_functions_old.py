@@ -1,5 +1,3 @@
-# api_functions.py (DNS korjattu '8.8.8.8':ksi ristiriidan poistamiseksi)
-
 # Funktion for WiFi connection creation
 def set_station(time_module, network_module, ssid, password):
     
@@ -11,7 +9,7 @@ def set_station(time_module, network_module, ssid, password):
     station.connect(ssid, password)
     
     # Define static ip address
-    station.ifconfig(('192.168.0.99', '255.255.255.0', '192.168.0.10', '8.8.8.8'))  # DNS korjattu
+    station.ifconfig(('192.168.0.99', '255.255.255.0', '192.168.0.10', '8.0.8.0'))
     
     # Create object for ip address
     ip_address = station.ifconfig()[0]
@@ -78,6 +76,7 @@ def set_socket(socket,time_module):
     
     # Return socket
     return s
+
 
 def parse_request(brew_data, request, save_settings, json):
     # From request: search for brew_temperature for numeric values
@@ -168,3 +167,12 @@ Content-type:text/html
     <h1>Setup Completed</h1>
   </body>
 </html>"""
+
+#<!--Lisää päivitys testausta varten-->
+#    <meta http-equiv="refresh" content="2; url=http://192.168.0.99/">
+#     <p>
+#       Mode: {mode}
+#     </p>
+#     <p>
+#       Temperature: {boiler_temperature}
+#     </p>

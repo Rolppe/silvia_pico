@@ -371,7 +371,8 @@ class Thermostat:
         # Calculate temperature difference
         temperature_difference = int((temperature - target_temperature) *100)
     
-        if (abs(temperature_difference / 5) > cycle_count):
+        # Calculate heating ratio of cycle from distance to target temperature
+        if (abs(temperature_difference / 9) > cycle_count):
             return_bool = True
         else:
             return_bool = False

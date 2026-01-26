@@ -1,19 +1,23 @@
-# Import libraries
+# This code implements a Bluetooth Low Energy (BLE) service for the Raspberry Pi Pico 2 W using MicroPython.
+# It allows establishing a connection with a device (e.g., a smartphone or computer) and sending temperature data in real time.
+# The code is designed to be modular: the BLECoffee class handles BLE operations, and the main program initializes it and sends data.
+# Debug prints help with troubleshooting, showing what BLE functions are happening in real time.
+
+# Import necessary modules:
+import bluetooth  # Bluetooth functions in MicroPython (built-in for Pico W).
+from micropython import const  # Defines constants for memory efficiency.
+import time  # Time delays, e.g., for data transmission interval.
+import json  # Converts data to JSON format for transmission.
+import machine  # Hardware control, e.g., pins and LED.
+import random  # Random numbers for temperature simulation (replace with real sensor in production).
 import utime
-import json
-from machine import Pin, ADC
 import adafruit_max31865 as max31865
-import socket
-import network
-import select
-import bluetooth
-from micropython import const
-import time
-# Import functions, classes and data
+from machine import Pin, ADC
 from functions import save_settings, load_settings, print_values, fast_heatup, pre_infusion
 from classes import BrewData, HeatingSpeedCalculator, Thermostat, Sensor, PressureMonitor
 from secrets import ssid, password
 from bluetooth_class_test import BLEHandler
+
 # Set the input pins for switches
 switch_brew = Pin(7, Pin.IN, Pin.PULL_DOWN)
 switch_water = Pin(8, Pin.IN, Pin.PULL_DOWN)
@@ -23,14 +27,14 @@ relay_pump = Pin(11, Pin.OUT, value = 0)
 relay_solenoid = Pin(12, Pin.OUT, value = 0)
 relay_heater = Pin(13, Pin.OUT, value = 0)
 # Set advertising constants
-_ADV_TYPE_FLAGS = const(0x01)
-_ADV_TYPE_NAME = const(0x09)
-_ADV_TYPE_UUID16_COMPLETE = const(0x3)
-_ADV_TYPE_APPEARANCE = const(0x19)
+_ADV_TYPE_FLAGS = const(0x01) # Flags, e.g., for general discoverability.
+_ADV_TYPE_NAME = const(0x09) # Device name in advertisement.
+_ADV_TYPE_UUID16_COMPLETE = const(0x3) # Complete 16-bit UUID list.
+_ADV_TYPE_APPEARANCE = const(0x19) # Device appearance (e.g., category like sensor).
 # Set UUIDs for GATT service and characteristics
-_CENTRAL_UUID = bluetooth.UUID('0000180a-0000-1000-8000-00805f9b34fb')
-_DATA_CHAR_UUID = bluetooth.UUID('00002a29-0000-1000-8000-00805f9b34fb')
-_COMMAND_CHAR_UUID = bluetooth.UUID('00002a2a-0000-1000-8000-00805f9b34fb')
+_CENTRAL_UUID = bluetooth.UUID('0000180a-0000-1000-8000-00805f9b34fb') # Service UUID (e.g., Device Information Service).
+_DATA_CHAR_UUID = bluetooth.UUID('00002a29-0000-1000-8000-00805f9b34fb') # Data characteristic (notify and read).
+_COMMAND_CHAR_UUID = bluetooth.UUID('00002a2a-0000-1000-8000-00805f9b34fb') # Command characteristic (write).
 ######## Developement Settings ###########################
 fast_heatup_mode = False
 pre_infusion_mode = True
@@ -38,7 +42,7 @@ after_brew_pressure_drain = False
 pre_infusion_pressure_buildup_time = 0
 pre_infusion_time = 5
 soft_pressure_release_time = 0
-brew_pressure = 8
+brew_pressure = 9
 ##########################################################
 # Initialize max31865 (temperature sensort pt100)
 sensor = Sensor(max31865, Pin)
@@ -101,7 +105,7 @@ while True:
                 # Set mode to pre-infusion
                 brew_data.set_mode('pre-infusion')
                 # Start pre-infusion program function
-                pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, sensor, pressure_monitor,ble_handler)
+                pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, sensor, pressure_monitor)
         # Set mode to brewing
         brew_data.set_mode('brew')
         # Initialize counter for brewing cycles
@@ -127,19 +131,7 @@ while True:
                 relay_heater.value(1)
             # Get pressure
             pressure_bar = pressure_monitor.get_pressure()
-            
-            # Read pt100 sensor temperature
-            boiler_temperature = sensor.read_temperature()
-            
-            if ble_handler._connections:
-                pressure_bar = pressure_monitor.get_pressure()  # Read pressure again if needed
-                data = {
-                    'temp': boiler_temperature,
-                    'pressure': pressure_bar
-                }
-                ble_handler.send_data(data)
-            
-             # Print pressure_bar4 times in second
+            # Print pressure_bar4 times in second
             if utime.ticks_diff(utime.ticks_ms(), last_print_time) >= 250:
                 print("pressure: " +str(pressure_bar) +" bar")
                 last_print_time = utime.ticks_ms()
@@ -182,12 +174,12 @@ while True:
         relay_pump.value(0)
         relay_heater.value(0)
        
-    # Send data (boiler_temperature and pressure_bar) via BLE to the app if connected
+    # Lähetä data (boiler_temperature ja pressure_bar) BLE:n kautta appiin, jos yhteys on
     if ble_handler._connections:
-        pressure_bar = pressure_monitor.get_pressure()  # Read pressure again if needed
+        pressure_bar = pressure_monitor.get_pressure()  # Lue paine uudelleen, jos tarvitaan
         data = {
             'temp': boiler_temperature,
             'pressure': pressure_bar
         }
         ble_handler.send_data(data)
-    time.sleep(0.1)  # Short delay in the loop to save resources
+    time.sleep(0.1)  # Lyhyt viive loopissa resurssien säästämiseksi

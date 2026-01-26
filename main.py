@@ -1,190 +1,231 @@
-# Import libraries
+# IMPORT LIBRARIES
 import utime
 import json
-from machine import Pin, ADC
-import adafruit_max31865 as max31865
 import socket
 import network
 import select
 import bluetooth
-from micropython import const
 import time
-# Import functions, classes and data
-from functions import save_settings, load_settings, print_values, fast_heatup, pre_infusion
-from classes import BrewData, HeatingSpeedCalculator, Thermostat, Sensor, PressureMonitor
-from secrets import ssid, password
+import adafruit_max31865  as max31865
+
+
+# IMPORT FUNCTIONS, CLASSES AND CONFIGURATIONS
+from machine              import Pin, ADC
+from micropython          import const
+
+from functions            import save_settings, load_settings, print_values, fast_heatup, pre_infusion
+from classes              import BrewData, HeatingSpeedCalculator, Thermostat, TemperatureSensor, PressureMonitor
 from bluetooth_class_test import BLEHandler
-# Set the input pins for switches
-switch_brew = Pin(7, Pin.IN, Pin.PULL_DOWN)
-switch_water = Pin(8, Pin.IN, Pin.PULL_DOWN)
-switch_steam = Pin(9, Pin.IN, Pin.PULL_DOWN)
-# Set the output pins for relays
-relay_pump = Pin(11, Pin.OUT, value = 0)
-relay_solenoid = Pin(12, Pin.OUT, value = 0)
-relay_heater = Pin(13, Pin.OUT, value = 0)
-# Set advertising constants
-_ADV_TYPE_FLAGS = const(0x01)
-_ADV_TYPE_NAME = const(0x09)
-_ADV_TYPE_UUID16_COMPLETE = const(0x3)
-_ADV_TYPE_APPEARANCE = const(0x19)
-# Set UUIDs for GATT service and characteristics
-_CENTRAL_UUID = bluetooth.UUID('0000180a-0000-1000-8000-00805f9b34fb')
-_DATA_CHAR_UUID = bluetooth.UUID('00002a29-0000-1000-8000-00805f9b34fb')
-_COMMAND_CHAR_UUID = bluetooth.UUID('00002a2a-0000-1000-8000-00805f9b34fb')
-######## Developement Settings ###########################
-fast_heatup_mode = False
-pre_infusion_mode = True
-after_brew_pressure_drain = False
-pre_infusion_pressure_buildup_time = 0
-pre_infusion_time = 5
-soft_pressure_release_time = 0
-brew_pressure = 8
-##########################################################
-# Initialize max31865 (temperature sensort pt100)
-sensor = Sensor(max31865, Pin)
-# Create data and state store object
-brew_data = BrewData(switch_brew, switch_steam, switch_water)
-# Create heat speed calculating object
+from initializers         import get_IO
+from secrets              import ssid, password
+from config               import FEATURES, PINS, MAX31865_CONFIG
+
+
+# INITIALIZE SWITCHES AND RELAYS
+SWITCH_BREW, SWITCH_WATER, SWITCH_STEAM, RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER = get_IO(Pin, ADC, PINS)
+
+# INITIALIZE PT100 TEMPERATURE SENSOR WITH MAX31865
+temperature_sensor = TemperatureSensor(max31865, PINS, MAX31865_CONFIG)
+
+# INITIALIZE PRESSURE SENSOR HANDLER
+pressure_sensor = PressureMonitor(utime, Pin, PINS, ADC)
+
+# INITIALIZE MAIN DATA HANDLER
+brew_data = BrewData(SWITCH_BREW, SWITCH_STEAM, SWITCH_WATER)
+
+# INITIALIZE HEATING SPEED CALCULATOR
 heating_speed_calculator = HeatingSpeedCalculator(utime)
-# Load settings (to brew_data object)
+
+# LOAD SAVED SETTINGS
 load_settings(json, brew_data)
-# Create class for pressure_barmonitoring
-pressure_monitor = PressureMonitor(Pin, ADC, utime)
-# Set flag for indicating if settings are to be fetched
-api_flag = True
-# If steam switch is off and fast heatup mode is on, set mode for fast heatup and fill boiler
-if switch_steam.value() and fast_heatup_mode:
-    brew_data.set_mode('fast_heatup')
-    fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor)
-# Initialize thermostat
+
+# INITIALIZE THERMOSTAT
 thermostat = Thermostat()
-# Initialize BLE
+
+# INITIALIZE BLE
 ble = bluetooth.BLE()
 ble_handler = BLEHandler(ble)
 
-#### MAIN LOOP ####
+
+# Set flag for indicating if settings are to be fetched
+api_flag = True
+
+# If steam switch is off and fast heatup mode is on, set mode for fast heatup and fill boiler
+if FEATURES['fast_heatup_mode_flag']:
+    brew_data.set_mode('fast_heatup')
+    fast_heatup(RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER, utime, sensor)
+
+
+# ============================================================================
+# MAIN LOOP
+# ============================================================================
+
 while True:
+    
     # Get brew settings from brew_data object
     if api_flag:
         brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()
         api_flag = False
+        
     # Read pt100 sensor temperature
-    boiler_temperature = sensor.read_temperature()
+    boiler_temperature = temperature_sensor.read_temperature()
+    
     # Save temperature data
     brew_data.set_boiler_temperature(boiler_temperature)
+    
     # Calculate heating speed
     heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature)
+    
     # Save heating speed
     brew_data.set_heating_speed(heating_speed)
-    ### THERMOSTAT ###
-   
-    thermostat.run(brew_data, switch_steam, relay_heater)
-    ### PRINT VALUES ###
-   
-    print_values(brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump)
-    ### BREWING MODE ###
+    
+    
+# ============================================================================
+# THERMOSTAT
+# ============================================================================
+    thermostat.run(brew_data, SWITCH_STEAM, RELAY_HEATER)
+    
+    
+# ============================================================================
+# PRINT VALUES
+# ============================================================================
+    print_values(brew_data, temperature_sensor, heating_speed, RELAY_HEATER, RELAY_SOLENOID, RELAY_PUMP)
+    
+    
+# ============================================================================
+# BREW MODE
+# ============================================================================
+    
     # If brew swith is on start brewing
-    if switch_brew.value():
+    if SWITCH_BREW.value():
+        
         ## Pre-infusion ##
-        if pre_infusion_mode:
+        if FEATURES['pre_infusion_mode_flag']:
+            
             # Set heater of for safety
-            relay_heater.value(0)
+            RELAY_HEATER.value(0)
+            
             #If brew switch is being put of within half second, push water and skip preinfusion
             utime.sleep(0.5)
-            if not switch_brew.value():
-                relay_solenoid.value(1)
-                relay_pump.value(1)
+            if not SWITCH_BREW.value():
+                RELAY_SOLENOID.value(1)
+                RELAY_PUMP.value(1)
                 utime.sleep(1)
-                relay_pump.value(0)
-                relay_solenoid.value(0)
+                RELAY_PUMP.value(0)
+                RELAY_SOLENOID.value(0)
             else:
                 # Set mode to pre-infusion
                 brew_data.set_mode('pre-infusion')
+                
                 # Start pre-infusion program function
-                pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, sensor, pressure_monitor,ble_handler)
+                pre_infusion(RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER, SWITCH_BREW, utime, temperature_sensor, pressure_sensor,ble_handler)
+        
         # Set mode to brewing
         brew_data.set_mode('brew')
+        
         # Initialize counter for brewing cycles
         brew_cycle_counter = 0
+        
         # Set solenoid an on for brewing
-        relay_solenoid.value(1)
+        RELAY_SOLENOID.value(1)
+        
         # Set pump on for brewing
-        relay_pump.value(1)
+        RELAY_PUMP.value(1)
         start_time = utime.ticks_ms()
         last_print_time = start_time
-        ## BREW LOOP ##
-       
+        
+        
+# ============================================================================
+# BREW LOOP
+# ============================================================================
+        brew_pressure               = FEATURES['brew_pressure_bar']
+        soft_pressure_release_time  = FEATURES['soft_pressure_release_time']
+        
         # Run brew cycle with heat cycling as long as brew switch is on
-        while(switch_brew.value()):
+        while(SWITCH_BREW.value()):
             elapsed_ms = utime.ticks_diff(utime.ticks_ms(), start_time)
             current_seconds = elapsed_ms // 1000
+            
             # cycle heater of for 0.5ms and on 0.1s
             if (elapsed_ms % 150) < 100:
                 # Set heater relay off
-                relay_heater.value(0)
+                RELAY_HEATER.value(0)
+            
             else:
                 # Set heater relay on
-                relay_heater.value(1)
+                RELAY_HEATER.value(1)
+            
             # Get pressure
-            pressure_bar = pressure_monitor.get_pressure()
+            pressure_bar = pressure_sensor.get_pressure()
             
             # Read pt100 sensor temperature
-            boiler_temperature = sensor.read_temperature()
+            boiler_temperature = temperature_sensor.read_temperature()
             
             if ble_handler._connections:
-                pressure_bar = pressure_monitor.get_pressure()  # Read pressure again if needed
+                pressure_bar = pressure_sensor.get_pressure()  # Read pressure again if needed
                 data = {
                     'temp': boiler_temperature,
                     'pressure': pressure_bar
                 }
                 ble_handler.send_data(data)
             
-             # Print pressure_bar4 times in second
+            # Print pressure_bar4 times in second
             if utime.ticks_diff(utime.ticks_ms(), last_print_time) >= 250:
                 print("pressure: " +str(pressure_bar) +" bar")
                 last_print_time = utime.ticks_ms()
+            
             if pressure_bar < brew_pressure -1:
-                relay_pump.value(1)
+                RELAY_PUMP.value(1)
+            
             elif pressure_bar < brew_pressure:
-                relay_pump.value(1)
+                RELAY_PUMP.value(1)
                 utime.sleep(0.005)
-                relay_pump.value(0)
+                RELAY_PUMP.value(0)
+            
             else:
-                relay_pump.value(0)
+                RELAY_PUMP.value(0)
+        
         # Set pump off
-        relay_pump.value(0)
-        ## SLOW pressure_barRELEASE ##
+        RELAY_PUMP.value(0)
+        
+        ## slow pressure release ##
         utime.sleep(soft_pressure_release_time)
+        
         # Set soleinoid off
-        relay_solenoid.value(0)
-        if after_brew_pressure_drain:
-            pressure_bar = pressure_monitor.get_pressure()
+        RELAY_SOLENOID.value(0)
+        if FEATURES['after_brew_pressure_drain_flag']:
+            pressure_bar = pressure_sensor.get_pressure()
             while pressure_bar > 1.5:
                 print("Pressure: " + str(pressure_bar) + " bar")
                 utime.sleep(0.5)
-                relay_solenoid.value(1)
+                RELAY_SOLENOID.value(1)
                 utime.sleep(0.5)
-                relay_solenoid.value(0)
-                pressure_bar = pressure_monitor.get_pressure()
-    ### HOT WATER MODE AND API MODE ###
+                RELAY_SOLENOID.value(0)
+                pressure_bar = pressure_sensor.get_pressure()
+                
+                
+# ============================================================================
+# HOT WATER MODE
+# ============================================================================
+
     # If water switch is on
-    if switch_water.value():
+    if SWITCH_WATER.value():
         # Set mode to 'water'
         brew_data.set_mode('water')
         # Set on boiler heater
-        relay_heater.value(1)
+        RELAY_HEATER.value(1)
         # set on water
-        relay_pump.value(1)
+        RELAY_PUMP.value(1)
         # Run cycle for hot water as long as hot water switch is on
-        while (switch_water.value()):
+        while (SWITCH_WATER.value()):
             utime.sleep(0.1)
         # Set heater and pump relays off after hot water kloop
-        relay_pump.value(0)
-        relay_heater.value(0)
+        RELAY_PUMP.value(0)
+        RELAY_HEATER.value(0)
        
     # Send data (boiler_temperature and pressure_bar) via BLE to the app if connected
     if ble_handler._connections:
-        pressure_bar = pressure_monitor.get_pressure()  # Read pressure again if needed
+        pressure_bar = pressure_sensor.get_pressure()  # Read pressure again if needed
         data = {
             'temp': boiler_temperature,
             'pressure': pressure_bar

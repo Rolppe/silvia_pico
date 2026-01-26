@@ -11,7 +11,7 @@ def set_station(time_module, network_module, ssid, password):
     station.connect(ssid, password)
     
     # Define static ip address
-    station.ifconfig(('192.168.0.99', '255.255.255.0', '192.168.0.10', '8.8.8.8'))  # DNS korjattu
+    station.ifconfig(('192.168.0.99', '255.255.255.0', '192.168.0.10', '8.8.8.8')) 
     
     # Create object for ip address
     ip_address = station.ifconfig()[0]

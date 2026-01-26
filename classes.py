@@ -1,10 +1,3 @@
-# Class for inverting Pins
-# class InvertedPin(Pin):
-#     def value(self, *args, **kwargs):
-#         val = super().value(*args, **kwargs)
-#         return 0 if val == 1 else 1 if val is not None else None
-
-
 # Function for getting ratio for pump on and off states.
 class PumpRatioCalculator:
     def __init__(self,utime_module):
@@ -46,7 +39,6 @@ class PumpRatioCalculator:
             self.pump_off_time += self.utime.ticks_diff(self.utime.ticks_ms(), self.pump_stop_timer)
             self.pump_stop_timer = self.utime.ticks_ms()
                 
- 
         
         if self.pump_on_time + self.pump_off_time == 0:
             return 0
@@ -57,9 +49,6 @@ class PumpRatioCalculator:
             return self.pump_ratio
         
         
-        
-        
-        
 class BrewStatsLogger:
     def __init__(self_utime):
         self.pressure = 0
@@ -68,11 +57,6 @@ class BrewStatsLogger:
         self.pump_ratio = 0
         self.resolution = 1 # times in second
         self.file_name = "brew_log.txt"
-        
-        
-        
-        
-        
         
 ###### Class to share data between the cores ####
 class BrewData:
@@ -127,89 +111,100 @@ class BrewData:
     # Function to get mode value
     def get_mode(self):
         mode = self.mode
+        
         return mode
     
     # Function to get brew settings
     def get_settings(self):
-        brew_temperature = self.brew_temperature
-        steam_temperature = self.steam_temperature
-        pre_infusion_time = self.pre_infusion_time
+        brew_temperature           = self.brew_temperature
+        steam_temperature          = self.steam_temperature
+        pre_infusion_time          = self.pre_infusion_time
         pressure_soft_release_time = self.pressure_soft_release_time
-        pre_heat_time = self.pre_heat_time
+        pre_heat_time              = self.pre_heat_time
+        
         return brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time
     
     # Function to get pre-infusion time
     def get_pre_infusion_time(self):
         time = self.pre_infusion_time
+        
         return time
     
     # Function to get brew temperature
     def get_brew_temperature(self):
         brew_temperature = self.brew_temperature
+        
         return brew_temperature
     
         # Function to get the states of the switches
     def get_switches_state(self):
-        brew_switch = self.brew_switch
+        brew_switch  = self.brew_switch
         steam_switch = self.steam_switch
         water_switch = self.water_switch
+        
         return brew_switch, steam_switch, water_switch
     
     # Function to get state of the brew switch
     def get_brew_switch_state(self):
         brew_switch = self.brew_switch
+        
         return brew_switch
     
     # Function to get the state of the brew switch
     def get_water_switch_state(self):
         water_switch = self.water_switch
+        
         return water_switch
     
     # Function to get the state of the steam switch
     def get_steam_switch_state(self):
         steam_switch = self.steam_switch
+        
         return steam_switch
 
     def get_boiler_temperature(self):
         boiler_temperature = self.boiler_temperature
+        
         return boiler_temperature
     
     def get_target_temperature(self):
         target_temperature = self.target_temperature
+        
         return target_temperature
 
     def get_heating_speed(self):
         heating_speed = self.heating_speed
+        
         return heating_speed
     
     def get_boiler_stats(self):
         boiler_temperature = self.boiler_temperature
-        brew_temperature = self.brew_temperature
-        steam_temperature = self.steam_temperature
-        heating_speed = self.heating_speed
+        brew_temperature   = self.brew_temperature
+        steam_temperature  = self.steam_temperature
+        heating_speed      = self.heating_speed
+        
         return boiler_temperature, brew_temperature, steam_temperature, heating_speed
     
     def get_pre_heat_time(self):
         pre_heat_time = self.pre_heat_time
+        
         return pre_heat_time
 
     def get_pressure_soft_release_time(self):
         pressure_soft_release_time = self.pressure_soft_release_time
+        
         return pressure_soft_release_time
 
 
 ##### Class for pressure monitoring #####
 class PressureMonitor:
-    def __init__(self, Pin_module, ADC_module, utime_module):
+    def __init__(self, utime, Pin, PINS, ADC):
         
-        self.ADC = ADC_module
-        self.utime = utime_module
+        self.pressure_sensor  = ADC(Pin(PINS['PRESSURE_ADC_PIN_NUMBER']))
+        self.utime            = utime
         self.number_of_cycles = 1
-        self.time_start = 0
-        self.pressure_sensor = ADC_module(Pin_module(28))
+        self.time_start       = 0
 
-        
-        
     def get_pressure(self):
         
         pressure_sensor = self.pressure_sensor
@@ -435,13 +430,18 @@ class HeatingSpeedCalculator:
   
   
 #### Class for reading pt100 sensor temperature with max31865 ####
-class Sensor:
-    def __init__(self, max31865, pin_module):
+class TemperatureSensor:
+    def __init__(self, max31865, PINS, MAX31865_CONFIG):
         self.sensor = max31865.MAX31865(
             # ref_resistor arvoksi noin 438.0 tai rtd_nominal arvoksi noin 100.7
             #  OG = rtd_nominal = 102.5, ref_resistor = 430.0
-            wires = 3, rtd_nominal = 100, ref_resistor = 430.0, 
-            pin_sck = 6, pin_mosi = 3, pin_miso = 4, pin_cs = 5
+            wires        = MAX31865_CONFIG['NUMBER_OF_WIRES'],
+            rtd_nominal  = MAX31865_CONFIG['RTD_NOMINAL'],
+            ref_resistor = MAX31865_CONFIG['REF_RESISTOR'],
+            pin_sck      = PINS['TEMP_SCK_PIN_NUMBER'],
+            pin_mosi     = PINS['TEMP_MOSI_PIN_NUMBER'],
+            pin_miso     = PINS['TEMP_MISO_PIN_NUMBER'],
+            pin_cs       = PINS['TEMP_CS_PIN_NUMBER'],
             )
         self.temps = [0, 0, 0, 0, 0 ,0 ,0]
         self.temps_i = 0

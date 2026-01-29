@@ -1,3 +1,14 @@
+def get_IO(Pin, ADC, PINS):
+    SWITCH_BREW     = Pin(PINS['SWITCH_BREW_PIN_NUMBER'], Pin.IN, Pin.PULL_DOWN)
+    SWITCH_WATER    = Pin(PINS['SWITCH_WATER_PIN_NUMBER'], Pin.IN, Pin.PULL_DOWN)
+    SWITCH_STEAM    = Pin(PINS['SWITCH_STEAM_PIN_NUMBER'], Pin.IN, Pin.PULL_DOWN)
+    
+    RELAY_PUMP      = Pin(PINS['RELAY_PUMP_PIN_NUMBER'], Pin.OUT, value=0)
+    RELAY_SOLENOID  = Pin(PINS['RELAY_SOLENOID_PIN_NUMBER'], Pin.OUT, value=0)
+    RELAY_HEATER    = Pin(PINS['RELAY_HEATER_PIN_NUMBER'], Pin.OUT, value=0)
+    
+    return SWITCH_BREW, SWITCH_WATER, SWITCH_STEAM, RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER
+
 # Funktion for preinfusion
 def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, sensor, pressure_monitor, ble_handler):
     

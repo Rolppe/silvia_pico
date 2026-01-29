@@ -1,5 +1,3 @@
-# bluetooth_class_test.py
-
 # This code defines a Bluetooth Low Energy (BLE) class for the Raspberry Pi Pico 2 W using MicroPython.
 # It allows establishing a connection with a device (e.g., a smartphone or computer) and sending data in real time.
 # The class handles BLE operations, and can be imported and used in other scripts.

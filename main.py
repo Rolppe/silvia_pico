@@ -10,16 +10,17 @@ import adafruit_max31865  as max31865
 
 
 # IMPORT FUNCTIONS, CLASSES AND CONFIGURATIONS
-from machine              import Pin, ADC
-from micropython          import const
+from machine            import Pin, ADC
+from micropython        import const
+from functions          import save_settings, load_settings, print_values, fast_heatup, pre_infusion, get_IO
+from classes            import BrewData, HeatingSpeedCalculator, Thermostat, TemperatureSensor, PressureMonitor
+from bluetooth_handler  import BLEHandler
+from secrets            import ssid, password
+from config             import FEATURES, PINS, MAX31865_CONFIG
 
-from functions            import save_settings, load_settings, print_values, fast_heatup, pre_infusion
-from classes              import BrewData, HeatingSpeedCalculator, Thermostat, TemperatureSensor, PressureMonitor
-from bluetooth_class_test import BLEHandler
-from initializers         import get_IO
-from secrets              import ssid, password
-from config               import FEATURES, PINS, MAX31865_CONFIG
-
+# Turn off wifi for bluetooth stability
+wlan = network.WLAN(network.STA_IF)
+wlan.active(False)
 
 # INITIALIZE SWITCHES AND RELAYS
 SWITCH_BREW, SWITCH_WATER, SWITCH_STEAM, RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER = get_IO(Pin, ADC, PINS)
@@ -45,7 +46,6 @@ thermostat = Thermostat()
 # INITIALIZE BLE
 ble = bluetooth.BLE()
 ble_handler = BLEHandler(ble)
-
 
 # Set flag for indicating if settings are to be fetched
 api_flag = True
@@ -78,17 +78,11 @@ while True:
     
     # Save heating speed
     brew_data.set_heating_speed(heating_speed)
-    
-    
-# ============================================================================
-# THERMOSTAT
-# ============================================================================
+        
+    # RUN THERMOSTAT
     thermostat.run(brew_data, SWITCH_STEAM, RELAY_HEATER)
     
-    
-# ============================================================================
-# PRINT VALUES
-# ============================================================================
+    # PRINT VALUES
     print_values(brew_data, temperature_sensor, heating_speed, RELAY_HEATER, RELAY_SOLENOID, RELAY_PUMP)
     
     
@@ -113,6 +107,7 @@ while True:
                 utime.sleep(1)
                 RELAY_PUMP.value(0)
                 RELAY_SOLENOID.value(0)
+                
             else:
                 # Set mode to pre-infusion
                 brew_data.set_mode('pre-infusion')
@@ -138,13 +133,17 @@ while True:
 # ============================================================================
 # BREW LOOP
 # ============================================================================
-        brew_pressure               = FEATURES['brew_pressure_bar']
-        soft_pressure_release_time  = FEATURES['soft_pressure_release_time']
+        brew_pressure = FEATURES['brew_pressure_bar']
+        soft_pressure_release_time = FEATURES['soft_pressure_release_time']
         
         # Run brew cycle with heat cycling as long as brew switch is on
         while(SWITCH_BREW.value()):
             elapsed_ms = utime.ticks_diff(utime.ticks_ms(), start_time)
             current_seconds = elapsed_ms // 1000
+            
+            # ===== HEATER =====
+            # Read pt100 sensor temperature
+            boiler_temperature = temperature_sensor.read_temperature()
             
             # cycle heater of for 0.5ms and on 0.1s
             if (elapsed_ms % 150) < 100:
@@ -155,14 +154,25 @@ while True:
                 # Set heater relay on
                 RELAY_HEATER.value(1)
             
+            # ===== PRESSURE =====
             # Get pressure
             pressure_bar = pressure_sensor.get_pressure()
             
-            # Read pt100 sensor temperature
-            boiler_temperature = temperature_sensor.read_temperature()
+            # If pressure is is low and and not in range keep pump on
+            if pressure_bar < brew_pressure -1:
+                RELAY_PUMP.value(1)
             
+            # if pressure is close to target use short pulses to minimize pressure spikes
+            elif pressure_bar < brew_pressure:
+                RELAY_PUMP.value(1)
+                utime.sleep(0.005)
+                RELAY_PUMP.value(0)
+            
+            else:
+                RELAY_PUMP.value(0)
+                
+            # ===== BLUETOOTH =====
             if ble_handler._connections:
-                pressure_bar = pressure_sensor.get_pressure()  # Read pressure again if needed
                 data = {
                     'temp': boiler_temperature,
                     'pressure': pressure_bar
@@ -173,24 +183,17 @@ while True:
             if utime.ticks_diff(utime.ticks_ms(), last_print_time) >= 250:
                 print("pressure: " +str(pressure_bar) +" bar")
                 last_print_time = utime.ticks_ms()
-            
-            if pressure_bar < brew_pressure -1:
-                RELAY_PUMP.value(1)
-            
-            elif pressure_bar < brew_pressure:
-                RELAY_PUMP.value(1)
-                utime.sleep(0.005)
-                RELAY_PUMP.value(0)
-            
-            else:
-                RELAY_PUMP.value(0)
         
+        
+        # ===== END PROCEDURES =====
         # Set pump off
         RELAY_PUMP.value(0)
         
+        # ===== PRESSURE SOFT RELEASE =====
         ## slow pressure release ##
         utime.sleep(soft_pressure_release_time)
         
+        # ===== PRESSURE DRAIN =====
         # Set soleinoid off
         RELAY_SOLENOID.value(0)
         if FEATURES['after_brew_pressure_drain_flag']:
@@ -223,6 +226,10 @@ while True:
         RELAY_PUMP.value(0)
         RELAY_HEATER.value(0)
        
+# ============================================================================
+# MAIN LOOP BLE COMMUNICATION
+# ============================================================================
+    
     # Send data (boiler_temperature and pressure_bar) via BLE to the app if connected
     if ble_handler._connections:
         pressure_bar = pressure_sensor.get_pressure()  # Read pressure again if needed

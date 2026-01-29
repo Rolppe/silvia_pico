@@ -14,8 +14,8 @@ FEATURES = {
     
     'pre_infusion_pressure_buildup_time' : 0,
     'pre_infusion_time'                  : 5,
-    'soft_pressure_release_time'         : 0,
-    'brew_pressure_bar'                  : 8
+    'soft_pressure_release_time'         : 2,
+    'brew_pressure_bar'                  : 9
     }
 
 # ============================================================================

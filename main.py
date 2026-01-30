@@ -13,7 +13,7 @@ import adafruit_max31865  as max31865
 from machine            import Pin, ADC
 from micropython        import const
 from functions          import save_settings, load_settings, print_values, fast_heatup, pre_infusion, get_IO
-from classes            import BrewData, HeatingSpeedCalculator, Thermostat, TemperatureSensor, PressureMonitor
+from classes            import BrewData, HeatingSpeedCalculator, Thermostat, TemperatureSensor, PressureMonitor, PumpRatioCalculator
 from bluetooth_handler  import BLEHandler
 from secrets            import ssid, password
 from config             import FEATURES, PINS, MAX31865_CONFIG
@@ -50,6 +50,7 @@ ble_handler = BLEHandler(ble)
 # Set flag for indicating if settings are to be fetched
 api_flag = True
 
+pump_ratio_calculator = PumpRatioCalculator(utime)
 # If steam switch is off and fast heatup mode is on, set mode for fast heatup and fill boiler
 if FEATURES['fast_heatup_mode_flag']:
     brew_data.set_mode('fast_heatup')
@@ -92,32 +93,35 @@ while True:
     
     # If brew swith is on start brewing
     if SWITCH_BREW.value():
-        
         ## Pre-infusion ##
         if FEATURES['pre_infusion_mode_flag']:
             
             # Set heater of for safety
             RELAY_HEATER.value(0)
             
-            #If brew switch is being put of within half second, push water and skip preinfusion
-            utime.sleep(0.5)
-            if not SWITCH_BREW.value():
-                RELAY_SOLENOID.value(1)
-                RELAY_PUMP.value(1)
-                utime.sleep(1)
-                RELAY_PUMP.value(0)
-                RELAY_SOLENOID.value(0)
-                
-            else:
-                # Set mode to pre-infusion
-                brew_data.set_mode('pre-infusion')
-                
-                # Start pre-infusion program function
-                pre_infusion(RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER, SWITCH_BREW, utime, temperature_sensor, pressure_sensor,ble_handler)
+#             #If brew switch is being put of within half second, push water and skip preinfusion
+#             utime.sleep(0.5)
+#             if not SWITCH_BREW.value():
+#                 RELAY_SOLENOID.value(1)
+#                 RELAY_PUMP.value(1)
+#                 utime.sleep(1)
+#                 RELAY_PUMP.value(0)
+#                 RELAY_SOLENOID.value(0)
+#                 
+#             else:
+#                 # Set mode to pre-infusion
+#                 brew_data.set_mode('pre-infusion')
+        
+        # Set mode to pre-infusion
+        brew_data.set_mode('pre-infusion')
+        
+        # Start pre-infusion program function
+        pre_infusion(RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER, SWITCH_BREW, utime, temperature_sensor, pressure_sensor,ble_handler)
         
         # Set mode to brewing
         brew_data.set_mode('brew')
         
+        pump_ratio = 0
         # Initialize counter for brewing cycles
         brew_cycle_counter = 0
         
@@ -128,6 +132,7 @@ while True:
         RELAY_PUMP.value(1)
         start_time = utime.ticks_ms()
         last_print_time = start_time
+        last_pump_ratio_time = start_time
         
         
 # ============================================================================
@@ -135,7 +140,9 @@ while True:
 # ============================================================================
         brew_pressure = FEATURES['brew_pressure_bar']
         soft_pressure_release_time = FEATURES['soft_pressure_release_time']
-        
+        brew_pressure_reached_flag = False
+        pump_ratio_calculator.start()
+
         # Run brew cycle with heat cycling as long as brew switch is on
         while(SWITCH_BREW.value()):
             elapsed_ms = utime.ticks_diff(utime.ticks_ms(), start_time)
@@ -161,28 +168,40 @@ while True:
             # If pressure is is low and and not in range keep pump on
             if pressure_bar < brew_pressure -1:
                 RELAY_PUMP.value(1)
+                pump_ratio_calculator.set_pump_on()
             
             # if pressure is close to target use short pulses to minimize pressure spikes
             elif pressure_bar < brew_pressure:
+                brew_pressure_reached_flag = True
                 RELAY_PUMP.value(1)
+                pump_ratio_calculator.set_pump_on()
                 utime.sleep(0.005)
                 RELAY_PUMP.value(0)
-            
+                pump_ratio_calculator.set_pump_off()
             else:
                 RELAY_PUMP.value(0)
+                pump_ratio_calculator.set_pump_off()
+                
+            if utime.ticks_diff(utime.ticks_ms(), last_pump_ratio_time) >= 2000:
+                pump_ratio = round(pump_ratio_calculator.get_ratio(), 2)
+                last_pump_ratio_time = utime.ticks_ms()
                 
             # ===== BLUETOOTH =====
-            if ble_handler._connections:
-                data = {
-                    'temp': boiler_temperature,
-                    'pressure': pressure_bar
-                }
-                ble_handler.send_data(data)
-            
-            # Print pressure_bar4 times in second
             if utime.ticks_diff(utime.ticks_ms(), last_print_time) >= 250:
+                # Print pressure_bar4 times in second
                 print("pressure: " +str(pressure_bar) +" bar")
+                print("Pump ratio: " + str(pump_ratio))
+
                 last_print_time = utime.ticks_ms()
+                
+                if ble_handler._connections:
+                    data = {
+                        'temp': boiler_temperature,
+                        'pressure': pressure_bar,
+                        'pump_ratio': pump_ratio
+                        }
+                    ble_handler.send_data(data)
+            
         
         
         # ===== END PROCEDURES =====
@@ -191,7 +210,8 @@ while True:
         
         # ===== PRESSURE SOFT RELEASE =====
         ## slow pressure release ##
-        utime.sleep(soft_pressure_release_time)
+        if brew_pressure_reached_flag:
+            utime.sleep(soft_pressure_release_time)
         
         # ===== PRESSURE DRAIN =====
         # Set soleinoid off

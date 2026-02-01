@@ -1,3 +1,6 @@
+# ============================================================================
+#   GET_IO
+# ============================================================================
 def get_IO(Pin, ADC, PINS):
     SWITCH_BREW     = Pin(PINS['SWITCH_BREW_PIN_NUMBER'], Pin.IN, Pin.PULL_DOWN)
     SWITCH_WATER    = Pin(PINS['SWITCH_WATER_PIN_NUMBER'], Pin.IN, Pin.PULL_DOWN)
@@ -9,16 +12,23 @@ def get_IO(Pin, ADC, PINS):
     
     return SWITCH_BREW, SWITCH_WATER, SWITCH_STEAM, RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER
 
-# Funktion for preinfusion
+
+# ============================================================================
+#  PRE-INFUSION
+# ============================================================================
 def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, sensor, pressure_monitor, ble_handler):
+    
+    # ===== PRESSURE DRAIN (TO BE MOVED) ===== #
     
     # Open solenoid for water to flow to grouphead
     relay_solenoid.value(1)
     
     # If theres a pressure in system, let stabilize to pre-infusion pressure
-    while pressure_monitor.get_pressure() > 1.9:
+    while pressure_monitor.get_pressure() > 1.9 and switch_brew.value():
             
+        # Read sensor pressure
         pressure_bar = pressure_monitor.get_pressure()
+        
         # Read pt100 sensor temperature
         boiler_temperature = sensor.read_temperature()
         
@@ -29,10 +39,13 @@ def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, s
                 'pressure': pressure_bar
             }
             ble_handler.send_data(data)
+
+
+    # ===== PRE-INFUSION PRESSURE BUILD UP ===== #
     
     # Start building pre-infusion pressure by turning pump on.
     relay_pump.value(1)
-
+    
     # Keep pump on till almost pre-infusion pressure, just a bit under to prevent pressure overshooting
     while pressure_monitor.get_pressure() < 1.9 and switch_brew.value():
             
@@ -55,15 +68,19 @@ def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, s
     start = utime.ticks_ms()
     end = utime.ticks_add(start, 5000)       
         
+    relay_pump.value(0)
+    # ===== PREINFUSION WITH REACHED PRESSURE ===== #
+    
     # Create timed preinfusion loop
     while utime.ticks_diff(end, utime.ticks_ms()) > 0 and switch_brew.value():
         
-        
-        
+        # Read pressure sensor
         pressure_bar = pressure_monitor.get_pressure()
+        
         # Read pt100 sensor temperature
         boiler_temperature = sensor.read_temperature()
         
+        # Send bluetooth data
         if ble_handler._connections:
             pressure_bar = pressure_monitor.get_pressure()  # Read pressure again if needed
             data = {
@@ -73,17 +90,19 @@ def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, s
             ble_handler.send_data(data)
         
         
-        
-        
-        # if 
+        # ===== PRESSURE HANDLING ===== #
+               
         if pressure_monitor.get_pressure() < 2.0:
             relay_pump.value(1)
-        # if pressure has reached preinfusion pressure, pause the pump
-        else:
+            utime.sleep(0.035)
             relay_pump.value(0)
-        print(pressure_monitor.get_pressure())
+        
+        utime.sleep_ms(1)
 
 
+# ============================================================================
+# FAST HEATUP
+# ============================================================================
 def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor): #
         
     # Fill the boiler
@@ -134,7 +153,10 @@ def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor): #
     # Sleep while boiler stabilizes
     utime.sleep(15)
 
-# Function for printing information
+
+# ============================================================================
+# PRINT VALUES
+# ============================================================================
 def print_values(brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump):
  
     # Get boiler temperature
@@ -161,7 +183,9 @@ def print_values(brew_data, sensor, heating_speed, relay_heater, relay_solenoid,
     print("","")
 
 
-# Funktion for saving settings to file
+# ============================================================================
+# SAVE SETTINGS
+# ============================================================================
 def save_settings(brew_data, json_module):
     
     # Get settings from brew_data object
@@ -181,7 +205,9 @@ def save_settings(brew_data, json_module):
         json_module.dump(data, file)
 
 
-# Function for loading settings from file
+# ============================================================================
+# LOAD SETTINGS
+# ============================================================================
 def load_settings(json_module, brew_data):
     
     # Get values from file to variables

@@ -238,7 +238,6 @@ class PressureMonitor:
     
     def get_pressure_while(self, measure_time):
     
-    
         pressure_sensor = self.pressure_sensor
         utime = self.utime
         pressure = 0

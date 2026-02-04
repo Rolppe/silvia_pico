@@ -1,3 +1,5 @@
+import asyncio
+
 # ============================================================================
 #   GET_IO
 # ============================================================================
@@ -16,99 +18,99 @@ def get_IO(Pin, ADC, PINS):
 # ============================================================================
 #  PRE-INFUSION
 # ============================================================================
-def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, sensor, pressure_monitor, ble_handler):
+async def pre_infusion(relay_pump, relay_solenoid, relay_heater, switch_brew, utime, sensor, pressure_monitor, brew_data): #, ble_handler):
     
     # ===== PRESSURE DRAIN (TO BE MOVED) ===== #
+    
+    # Read sensor pressure
+    pressure_bar = pressure_monitor.get_pressure()
+    brew_data.set_pressure(pressure_bar)
+    
+    # Read pt100 sensor temperature
+    boiler_temperature = sensor.read_temperature()
+    brew_data.set_boiler_temperature(boiler_temperature)
     
     # Open solenoid for water to flow to grouphead
     relay_solenoid.value(1)
     
     # If theres a pressure in system, let stabilize to pre-infusion pressure
-    while pressure_monitor.get_pressure() > 1.9 and switch_brew.value():
-            
+    while pressure_bar > 1.9 and switch_brew.value():
+        
+        print("pre-infusion pressure stabilization")
         # Read sensor pressure
         pressure_bar = pressure_monitor.get_pressure()
+        brew_data.set_pressure(pressure_bar)
         
         # Read pt100 sensor temperature
         boiler_temperature = sensor.read_temperature()
+        brew_data.set_boiler_temperature(boiler_temperature)
+
+        await asyncio.sleep(0.1) # utime.sleep(0.1)
         
-        if ble_handler._connections:
-            pressure_bar = pressure_monitor.get_pressure()  # Read pressure again if needed
-            data = {
-                'temp': boiler_temperature,
-                'pressure': pressure_bar
-            }
-            ble_handler.send_data(data)
-
-
     # ===== PRE-INFUSION PRESSURE BUILD UP ===== #
     
     # Start building pre-infusion pressure by turning pump on.
     relay_pump.value(1)
     
     # Keep pump on till almost pre-infusion pressure, just a bit under to prevent pressure overshooting
-    while pressure_monitor.get_pressure() < 1.9 and switch_brew.value():
+    while pressure_bar < 1.9 and switch_brew.value():
             
+        print("pre-infusion pressure build-up")
+        
+        # Read sensor pressure
         pressure_bar = pressure_monitor.get_pressure()
+        brew_data.set_pressure(pressure_bar)
+        
         # Read pt100 sensor temperature
         boiler_temperature = sensor.read_temperature()
-        
-        if ble_handler._connections:
-            pressure_bar = pressure_monitor.get_pressure()  # Read pressure again if needed
-            data = {
-                'temp': boiler_temperature,
-                'pressure': pressure_bar
-            }
-            ble_handler.send_data(data)
-    
+        brew_data.set_boiler_temperature(boiler_temperature)
+     
+        await asyncio.sleep(0.1) # utime.sleep(0.1)
+
     # Let pressure stabilize
-    utime.sleep(0.1)
+    await asyncio.sleep(0.1) # utime.sleep(0.1)
     
     # Create timer for preinfusion
     start = utime.ticks_ms()
     end = utime.ticks_add(start, 5000)       
         
     relay_pump.value(0)
+    
+    
     # ===== PREINFUSION WITH REACHED PRESSURE ===== #
     
     # Create timed preinfusion loop
     while utime.ticks_diff(end, utime.ticks_ms()) > 0 and switch_brew.value():
         
-        # Read pressure sensor
+        print("pre-infusion main")
+        
+        # Read sensor pressure
         pressure_bar = pressure_monitor.get_pressure()
+        brew_data.set_pressure(pressure_bar)
         
         # Read pt100 sensor temperature
         boiler_temperature = sensor.read_temperature()
-        
-        # Send bluetooth data
-        if ble_handler._connections:
-            pressure_bar = pressure_monitor.get_pressure()  # Read pressure again if needed
-            data = {
-                'temp': boiler_temperature,
-                'pressure': pressure_bar
-            }
-            ble_handler.send_data(data)
-        
+        brew_data.set_boiler_temperature(boiler_temperature)
         
         # ===== PRESSURE HANDLING ===== #
                
         if pressure_monitor.get_pressure() < 2.0:
             relay_pump.value(1)
-            utime.sleep(0.035)
+            await asyncio.sleep(0.035) # utime.sleep(0.035)
             relay_pump.value(0)
         
-        utime.sleep_ms(1)
+        await asyncio.sleep_ms(1) # utime.sleep(0.1)utime.sleep_ms(1)
 
 
 # ============================================================================
 # FAST HEATUP
 # ============================================================================
-def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor): #
+async def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor): #
         
     # Fill the boiler
     relay_solenoid.value(1)
     relay_pump.value(1)
-    utime.sleep(2)
+    await asyncio.sleep(2) # utime.sleep(2)
     relay_pump.value(0)
     relay_solenoid.value(0)
     
@@ -116,42 +118,42 @@ def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor): #
  # Heat the boiler
     relay_heater.value(1)
     while sensor.read_temperature() < 85:
-        utime.sleep(1)
+        await asyncio.sleep(1) # utime.sleep(1)
     while sensor.read_temperature() < 110:
         relay_heater.value(1)
-        utime.sleep(1)
+        await asyncio.sleep(1) # utime.sleep(1)
         relay_heater.value(0)
-        utime.sleep(1.5)
+        await asyncio.sleep(1.5) # utime.sleep(1.5)
     while sensor.read_temperature() < 115:
         relay_heater.value(1)
-        utime.sleep(1)
+        await asyncio.sleep(1) # utime.sleep(1)
         relay_heater.value(0)
-        utime.sleep(2)
+        await asyncio.sleep(2) # utime.sleep(2)
     
     # keep the temperature
     for i in range(200):
         if sensor.read_temperature() < 115:
             relay_heater.value(1)
-            utime.sleep(1)
+            await asyncio.sleep(1) # utime.sleep(1)
             relay_heater.value(0)
-            utime.sleep(2)
+            await asyncio.sleep(2) # utime.sleep(2)
         else:
-            utime.sleep(1)
-        utime.sleep(1)
+            await asyncio.sleep(1) # utime.sleep(1)
+        await asyncio.sleep(1) # utime.sleep(1)
     
     # Cool the boiler to under 105 celsius
     while sensor.read_temperature() > 99:
-        utime.sleep(1)
+        await asyncio.sleep(1) # utime.sleep(1)
         
     # Fill the boiler
     relay_solenoid.value(1)
     relay_pump.value(1)
-    utime.sleep(0.5)
+    await asyncio.sleep(0.5) # utime.sleep(0.5)
     relay_pump.value(0)
     relay_solenoid.value(0)
     
     # Sleep while boiler stabilizes
-    utime.sleep(15)
+    await asyncio.sleep(15) # utime.sleep(15)
 
 
 # ============================================================================

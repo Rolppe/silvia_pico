@@ -49,7 +49,7 @@ PINS = {
 
 MAX31865_CONFIG = {
     'NUMBER_OF_WIRES'    : 3, 
-    'RTD_NOMINAL'        : 102.5,
+    'RTD_NOMINAL'        : 100,
     'REF_RESISTOR'       : 430.0
     }
 

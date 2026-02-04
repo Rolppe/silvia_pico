@@ -1,6 +1,7 @@
 # Function for getting ratio for pump on and off states.
 class PumpRatioCalculator:
-    def __init__(self,utime_module):
+    def __init__(self,utime_module, asyncio_module):
+        self.asyncio = asyncio_module
         self.utime = utime_module
         self.pump_ratio = 0
         self.pump_start_timer = 0
@@ -50,7 +51,8 @@ class PumpRatioCalculator:
         
         
 class BrewStatsLogger:
-    def __init__(self_utime):
+    def __init__(self_utime, asyncio):
+        self.asyncio = asyncio_module
         self.pressure = 0
         self.start_time = 0
         self.boiler_temperature = 0
@@ -72,6 +74,7 @@ class BrewData:
         self.pre_heat_time = 0
         self.mode = "idle"
         self.boiler_temperature = 0
+        self.pressure = 0
         self.target_temperature = 0
         self.heating_speed = 0
     
@@ -108,6 +111,9 @@ class BrewData:
     def set_boiler_temperature(self, boiler_temperature):
         self.boiler_temperature = boiler_temperature
         
+    def set_pressure(self, pressure):
+        self.pressure = pressure
+        
     # Function to get mode value
     def get_mode(self):
         mode = self.mode
@@ -124,6 +130,17 @@ class BrewData:
         
         return brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time
     
+    
+    def get_boiler_temperature(self):
+        boiler_temperature = self.boiler_temperature
+        
+        return boiler_temperature
+        
+    def get_pressure(self):
+        pressure = self.pressure
+        
+        return pressure
+
     # Function to get pre-infusion time
     def get_pre_infusion_time(self):
         time = self.pre_infusion_time
@@ -198,9 +215,10 @@ class BrewData:
 
 ##### Class for pressure monitoring #####
 class PressureMonitor:
-    def __init__(self, utime, Pin, PINS, ADC):
+    def __init__(self, utime, asyncio_module, Pin, PINS, ADC):
         
         self.pressure_sensor  = ADC(Pin(PINS['PRESSURE_ADC_PIN_NUMBER']))
+        self.asyncio          = asyncio_module
         self.utime            = utime
         self.number_of_cycles = 1
         self.time_start       = 0
@@ -322,7 +340,7 @@ class Thermostat:
             relay_heater.value(0)
     
   
-    def get_target_temperature(switch_steam,brew_temperature, steam_temperature):
+    def get_target_temperature(switch_steam, brew_temperature, steam_temperature):
         
         # If steam switch is off: set brewing temperature as a target temperature
         if switch_steam.value() == 0:
@@ -385,8 +403,9 @@ class Thermostat:
 
 #### Class to calculate heating speed ####
 class HeatingSpeedCalculator:
-    def __init__(self, utime_module):
+    def __init__(self, utime_module, asyncio_module):
         self.temperature_begin = 20.0
+        self.asyncio = asyncio_module
         self.utime = utime_module
         self.time_start = 0
         self.first_measure_flag = True

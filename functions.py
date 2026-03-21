@@ -1,73 +1,175 @@
-def pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pre_infusion_pressure_buildup_time, pre_infusion_time):
-    print("buildup time: "+ str(pre_infusion_pressure_buildup_time))
-    print("pre time: "+ str(pre_infusion_time))
-    print(2)
-    relay_heater.value(0)
+import asyncio
+
+# ============================================================================
+#   GET_IO
+# ============================================================================
+
+def get_IO(Pin, ADC, PINS):
+    SWITCH_BREW     = Pin(PINS['SWITCH_BREW'], Pin.IN, Pin.PULL_DOWN)
+    SWITCH_WATER    = Pin(PINS['SWITCH_WATER'], Pin.IN, Pin.PULL_DOWN)
+    SWITCH_STEAM    = Pin(PINS['SWITCH_STEAM'], Pin.IN, Pin.PULL_DOWN)
+    
+    RELAY_PUMP      = Pin(PINS['RELAY_PUMP'], Pin.OUT, value=0)
+    RELAY_SOLENOID  = Pin(PINS['RELAY_SOLENOID'], Pin.OUT, value=0)
+    RELAY_HEATER    = Pin(PINS['RELAY_HEATER'], Pin.OUT, value=0)
+    
+    LED_BREW_SWITCH = Pin(PINS['LED_BREW_SWITCH'], Pin.OUT, value=0)
+    LED_WATER_SWITCH = Pin(PINS['LED_WATER_SWITCH'], Pin.OUT, value=0)
+    LED_STEAM_SWITCH = Pin(PINS['LED_STEAM_SWITCH'], Pin.OUT, value=0)
+    
+    
+    return SWITCH_BREW, SWITCH_WATER, SWITCH_STEAM, RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER, LED_BREW_SWITCH, LED_WATER_SWITCH, LED_STEAM_SWITCH
+
+
+# ============================================================================
+#  PRE-INFUSION
+# ============================================================================
+
+async def pre_infusion(relay_pump, relay_solenoid, RELAY_HEATER, switch_brew, utime, sensor, pressure_monitor, brew_data):
+    
+    # ===== PRESSURE DRAIN (TO BE MOVED) ===== #
+#    brew_data.set_mode('pre-infusion initialization')
+    # Read sensor pressure
+    pressure_bar = pressure_monitor.get_pressure()
+    brew_data.set_pressure(pressure_bar)
+    
+    # Read pt100 sensor temperature
+    boiler_temperature = sensor.read_temperature()
+    brew_data.set_boiler_temperature(boiler_temperature)
+    
+    # Open solenoid for water to flow to grouphead
     relay_solenoid.value(1)
     
+    # If theres a pressure in system, let stabilize to pre-infusion pressure
+    while pressure_bar > 1.9 and switch_brew.value():
+        
+#        brew_data.set_mode('pre-infusion pressure stabilization')
+        
+        # Read sensor pressure
+        pressure_bar = pressure_monitor.get_pressure()
+        brew_data.set_pressure(pressure_bar)
+        
+        # Read pt100 sensor temperature
+        boiler_temperature = sensor.read_temperature()
+        brew_data.set_boiler_temperature(boiler_temperature)
+
+        await asyncio.sleep_ms(100)
+        
+    # ===== PRE-INFUSION PRESSURE BUILD UP ===== #
+    
+    # Start building pre-infusion pressure by turning pump on.
     relay_pump.value(1)
-    utime.sleep(2)
+    
+    # Keep pump on till almost pre-infusion pressure, just a bit under to prevent pressure overshooting
+    while pressure_bar < 1.9 and switch_brew.value():
+            
+#        brew_data.set_mode('pre-infusion pressure build-up')
+        
+        # Read sensor pressure
+        pressure_bar = pressure_monitor.get_pressure()
+        brew_data.set_pressure(pressure_bar)
+        
+        # Read pt100 sensor temperature
+        boiler_temperature = sensor.read_temperature()
+        brew_data.set_boiler_temperature(boiler_temperature)
+     
+        await asyncio.sleep_ms(50)
+
     relay_pump.value(0)
     
-    for x in range(10):
-        relay_pump.value(1)
-        utime.sleep(0.1)
-        relay_pump.value(0)
-        utime.sleep(0.8)
-            
+    # Let pressure stabilize
+    await asyncio.sleep_ms(50)
+    
+    # Create timer for preinfusion
+    start = utime.ticks_ms()
+    end = utime.ticks_add(start, 5000)       
+        
+    
+    # ===== PREINFUSION WITH REACHED PRESSURE ===== #
+    
+    # Create timed preinfusion loop
+    while utime.ticks_diff(end, utime.ticks_ms()) > 0 and switch_brew.value():
+        
+#        brew_data.set_mode('pre-infusion main')
+        
+        # Read sensor pressure
+        pressure_bar = pressure_monitor.get_pressure()
+        brew_data.set_pressure(pressure_bar)
+        
+        # Read pt100 sensor temperature
+        boiler_temperature = sensor.read_temperature()
+        brew_data.set_boiler_temperature(boiler_temperature)
+        
+        # ===== PRESSURE HANDLING ===== #
+               
+        if pressure_monitor.get_pressure() < 2.0:
+            relay_pump.value(1)
+            await asyncio.sleep_ms(35)
+            relay_pump.value(0)
+        
+        await asyncio.sleep_ms(50)
 
-def fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor): #
+
+# ============================================================================
+# FAST HEATUP
+# ============================================================================
+
+async def fast_heatup(relay_pump, relay_solenoid, RELAY_HEATER, utime, sensor): 
         
     # Fill the boiler
     relay_solenoid.value(1)
     relay_pump.value(1)
-    utime.sleep(2)
+    await asyncio.sleep(2)
     relay_pump.value(0)
     relay_solenoid.value(0)
     
    
- # Heat the boiler
-    relay_heater.value(1)
+    # Heat the boiler
+    RELAY_HEATER.value(1)
     while sensor.read_temperature() < 85:
-        utime.sleep(1)
+        await asyncio.sleep(1)
     while sensor.read_temperature() < 110:
-        relay_heater.value(1)
-        utime.sleep(1)
-        relay_heater.value(0)
-        utime.sleep(1.5)
+        RELAY_HEATER.value(1)
+        await asyncio.sleep(1)
+        RELAY_HEATER.value(0)
+        await asyncio.sleep(1.5)
     while sensor.read_temperature() < 115:
-        relay_heater.value(1)
-        utime.sleep(1)
-        relay_heater.value(0)
-        utime.sleep(2)
+        RELAY_HEATER.value(1)
+        await asyncio.sleep(1)
+        RELAY_HEATER.value(0)
+        await asyncio.sleep(2)
     
     # keep the temperature
     for i in range(200):
         if sensor.read_temperature() < 115:
-            relay_heater.value(1)
-            utime.sleep(1)
-            relay_heater.value(0)
-            utime.sleep(2)
+            RELAY_HEATER.value(1)
+            await asyncio.sleep(1)
+            RELAY_HEATER.value(0)
+            await asyncio.sleep(2)
         else:
-            utime.sleep(1)
-        utime.sleep(1)
+            await asyncio.sleep(1)
+        await asyncio.sleep(1)
     
     # Cool the boiler to under 105 celsius
     while sensor.read_temperature() > 99:
-        utime.sleep(1)
+        await asyncio.sleep(1)
         
     # Fill the boiler
     relay_solenoid.value(1)
     relay_pump.value(1)
-    utime.sleep(0.5)
+    await asyncio.sleep(0.5)
     relay_pump.value(0)
     relay_solenoid.value(0)
     
     # Sleep while boiler stabilizes
-    utime.sleep(15)
+    await asyncio.sleep(15)
 
-# Function for printing information
-def print_values(brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump):
+
+# ============================================================================
+# PRINT VALUES
+# ============================================================================
+
+def print_values(brew_data, sensor, heating_speed, RELAY_HEATER, relay_solenoid, relay_pump):
  
     # Get boiler temperature
     boiler_temperature = sensor.read_temperature()
@@ -87,13 +189,16 @@ def print_values(brew_data, sensor, heating_speed, relay_heater, relay_solenoid,
     print("switch_brew: ", brew_switch_state.value())
     print("switch_water: ", water_switch_state.value()) 
     print("switch_steam: ", steam_switch_state.value())
-    print("relay_heater: ", relay_heater.value())
+    print("RELAY_HEATER: ", RELAY_HEATER.value())
     print("relay_solenoid: ", relay_solenoid.value())
     print("relay_pump: ", relay_pump.value())
     print("","")
 
 
-# Funktion for saving settings to file
+# ============================================================================
+# SAVE SETTINGS
+# ============================================================================
+
 def save_settings(brew_data, json_module):
     
     # Get settings from brew_data object
@@ -113,7 +218,10 @@ def save_settings(brew_data, json_module):
         json_module.dump(data, file)
 
 
-# Function for loading settings from file
+# ============================================================================
+# LOAD SETTINGS
+# ============================================================================
+
 def load_settings(json_module, brew_data):
     
     # Get values from file to variables
@@ -137,117 +245,6 @@ def load_settings(json_module, brew_data):
     return True
 
 
- # Funktion for WiFi connection creation
-def set_station(time_module, network_module, ssid, password):
-    
-    # Create station module
-    station = network_module.WLAN(network_module.STA_IF)
-    station.active(True)
-    
-    # Set wifi SSID and Password
-    station.connect(ssid, password)
-    
-    # Define static ip address
-    station.ifconfig(('192.168.0.99', '255.255.255.0', '192.168.0.10', '8.0.8.0'))
-    
-    # Create object for ip address
-    ip_address = station.ifconfig()[0]
-    
-    # Set maxium wait time for 5 seconds 
-    max_wait = 5
-    
-    # Create connection wait loop
-    while max_wait > 0:
-        
-        # If connectiod succeed or failed: brake the loop
-        if station.status() < 0 or station.status() >= 3:
-            break
-        
-        # Decrease 1 second from waiting time
-        max_wait -= 1
-        
-        # Print waiting status
-        print('waiting for connection...')
-        
-        # Set delay for one second
-        time_module.sleep(1)
-        
-    # If there's a error in connection: return False and inform from error
-    if station.isconnected == False:
-        raise RuntimeError('network connection failed')
-        return False
-    
-    # Otherwise inform from succesful connection and show link to ip in browser and return True
-    else:
-        print('Connected')
-        print('Käynnistetty. Mene selaimella <a href="http://{0}" target="_blank">{0}</a>'.format(ip_address))
-        status = station.ifconfig()
-        print('ip = ' , status[0])
-        return True
 
 
-# Function for two ways connection
-def set_socket(socket,time_module):
-    
-    # Create socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    
-    # Clear port
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    
-    # Set port to 80
-    port = 80
 
-    # Create loop for binding
-    while True:
-        try:
-            # Bind port to socket
-            s.bind(('', port))
-            s.listen(5)
-            
-            # Break the loop
-            break
-        
-        # If there's an error. Inform about it
-        except OSError as e:
-            if e.errno == 98:
-                print(f"Port {port} is already in use. Waiting for it to become available...")
-            
-            # Wait for one second
-            time_module.sleep(1)  
-    
-    # Return socket
-    return s
-
-
-# Function for creating HTML response
-def response_HTML(brew_data):
-
-    # Get settings from brew_data object
-    brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()
-
-    # Return HTML
-    return f"""HTTP/1.1 200 OK
-Content-type:text/html
-
-<html>
-  <head>
-    <title>Silvia Pico</title>
-  </head>
-  <body>
-    <h1>Brewing setup</h1>
-    <form action="/set_value" method="get">
-      Brewing temperature (&#8451;): <input type="number" name="brew_temperature" value = "{brew_temperature}">
-      <br><br>
-      Steam temperature (&#8451;): <input type="number" name="steam_temperature" value = "{steam_temperature}">
-      <br><br>
-      Pre-infusion time (s): <input type="number" name="pre_infusion_time" value = "{pre_infusion_time}">
-      <br><br>
-      Pre-heat time (s): <input type="number" name="pre_heat_time" value = "{pre_heat_time}">
-      <br><br>
-      Pressure soft-release time (s): <input type="number" name="pressure_soft_release_time" value = "{pressure_soft_release_time}">
-      <br><br>
-      <input type="submit" value="Set values and refresh" name="set_values_">
-    </form>
-  </body>
-</html>"""

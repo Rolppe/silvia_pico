@@ -1,226 +1,368 @@
-# Import libraries
+# IMPORT LIBRARIES
 import utime
 import json
-from machine import Pin
-import adafruit_max31865 as max31865
 import socket
 import network
+import select
+import bluetooth
+import time
+import adafruit_max31865  as max31865
+import asyncio
 
-# Import functions, classes and data
-from api_functions import set_station, set_socket,  response_HTML, parse_request
-from functions import save_settings, load_settings, print_values, fast_heatup, pre_infusion
-from classes import BrewData, HeatingSpeedCalculator, Thermostat, Sensor
-from secrets import ssid, password
-
-
-# Set the input pins for switches
-switch_brew = Pin(7, Pin.IN, Pin.PULL_DOWN)
-switch_steam = Pin(9, Pin.IN, Pin.PULL_DOWN)
-switch_water = Pin(8, Pin.IN, Pin.PULL_DOWN)
-
-# Set the output pins for relays
-relay_heater = Pin(11, Pin.OUT, value = 0)
-relay_solenoid = Pin(12, Pin.OUT, value = 0)
-relay_pump = Pin(13, Pin.OUT, value = 0)
+# IMPORT FUNCTIONS, CLASSES AND CONFIGURATIONS
+from machine            import Pin, ADC
+from micropython        import const
+from functions          import save_settings, load_settings, print_values, fast_heatup, pre_infusion, get_IO
+from classes            import BrewData, HeatingSpeedCalculator, Thermostat, TemperatureSensor, PressureMonitor, PumpRatioCalculator
+from bluetooth_handler  import BLEHandler
+from secrets            import ssid, password
+from config             import FEATURES, PINS, MAX31865_CONFIG, TARGET_TEMPERATURES
+from backflush          import run_backflush
 
 
-######## Developement Settings ###########################
+# Turn off wifi for bluetooth stability
+wlan = network.WLAN(network.STA_IF)
+wlan.active(False)
 
-fast_heatup_mode = False
-pre_infusion_mode = True
 
-pre_infusion_pressure_buildup_time = 1
-pre_infusion_time = 5 
-soft_pressure_release_time = 2 # 0 is off
+# ============================================================================
+# BLE COMMUNICATION
+# ============================================================================
 
-##########################################################
-
-# Initialize max31865 (temperature sensort pt100)
-sensor = Sensor(max31865, Pin)
-
-# Create data and state store object 
-brew_data = BrewData(switch_brew, switch_steam, switch_water)
-
-# Create heat speed calculating object
-heating_speed_calculator = HeatingSpeedCalculator(utime)
-
-# Load settings (to brew_data object)
-load_settings(json, brew_data)
-
-# Connect to Wifi
-set_station(utime, network, ssid, password)
-
-# Set Socket
-s = set_socket(socket, utime)
-
-# Set flag for indicating if settings are to be fetched
-api_flag = True
-
-# Function to api through wifi
-def network_settings_api():
+async def ble_communication(brew_data):
     
-    # If steam and water switches are on, then start broadcasting api
-    while (switch_steam.value() and switch_water.value()):
-
-        # Accept incoming communications
-        try:
-            conn, addr = s.accept()
-
-        # If error print it
-        except Exception as e:
+    ble = bluetooth.BLE()
+    ble_handler = BLEHandler(ble)
+    
+    start_time = utime.ticks_ms()
+    last_transmission_time = start_time
+    
+    
+    # ============================================================================
+    # BLE LOOP - BLE COMMUNICATION
+    # ============================================================================
+    
+    while True:
+        
+        # Set transmission rate max 5 times in second
+        if utime.ticks_diff(utime.ticks_ms(), last_transmission_time) >= 200:
+            last_transmission_time = utime.ticks_ms()
+        
+            # Send data (boiler_temperature and pressure_bar) via BLE to the app if connected
+            if ble_handler._connections:
+                pressure_bar = brew_data.get_pressure()
+                boiler_temperature = brew_data.get_boiler_temperature()
+                mode = brew_data.get_mode()
+                print(mode)
+                data = {
+                    'temp': boiler_temperature,
+                    'pressure': pressure_bar,
+                    'mode': mode
+                }
+                ble_handler.send_data(data)
             
-            # Print an error message
-            print('an error occured while establishing connection:' + str(e))
-
-        # Read request and format it to string
-        request = conn.recv(1024)
-        request = str(request)
-
-        # Parse request and save it to brew data
-        parse_request(brew_data, request, save_settings, json)
-
-        # Create HTML response
-        response = response_HTML(brew_data)
-
-        # Broadcast HTML response
-        conn.send(response)
-
-        # Close connection
-        conn.close()
-
-        # Nullify conn variable
-        conn = None
-
-        # Set up small delay before next handling
-        utime.sleep(1)
-    
-
-# If steam switch is off and fast heatup mode is on, set mode for fast heatup and fill boiler
-if not switch_steam.value() and fast_heatup_mode:
-    brew_data.set_mode('fast_heatup')
-    fast_heatup(relay_pump, relay_solenoid, relay_heater, utime, sensor, pressure_buildup_time, pre_infusion_time)
-
-# Initialize thermostat
-thermostat = Thermostat()
-
-#### MAIN LOOP ####
-
-while True:
-    
-    # Get brew settings from brew_data object
-    if api_flag:
-        brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()
-        api_flag = False
-    
-    # Read pt100 sensor temperature
-    boiler_temperature = sensor.read_temperature()
-    
-    # Save temperature data
-    brew_data.set_boiler_temperature(boiler_temperature)
-
-    # Calculate heating speed
-    heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature)
-    
-    # Save heating speed
-    brew_data.set_heating_speed(heating_speed)
-    
-    
-    ### THERMOSTAT ###     
-    thermostat.run(brew_data, switch_steam, relay_heater)
-    
-    
-    ### PRINT VALUES ###
-    print_values(brew_data, sensor, heating_speed, relay_heater, relay_solenoid, relay_pump)
-    
-    
-    ### BREWING MODE ###
-    
-    # If brew swith is on start brewing 
-    if switch_brew.value():
+        await asyncio.sleep_ms(50)
         
-        if pre_infusion_mode:
-            print(0)
-            brew_data.set_mode('pre-infusion')
-            pre_infusion(relay_pump, relay_solenoid, relay_heater, utime, sensor, pre_infusion_pressure_buildup_time, pre_infusion_time)
         
-        # Set mode to brewing
-        brew_data.set_mode('brew')
+# ============================================================================
+# MAIN LOOP ## RENAME!!!
+# ============================================================================
+
+async def main_loop(brew_data):
+    
+    # Set flag for indicating if settings are to be fetched
+    new_settings_awailable = True
+    
+    # INITIALIZE SWITCHES AND RELAYS
+    SWITCH_BREW, SWITCH_WATER, SWITCH_STEAM, RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER, LED_BREW_SWITCH, LED_WATER_SWITCH, LED_STEAM_SWITCH = get_IO(Pin, ADC, PINS)
+
+    # INITIALIZE PT100 TEMPERATURE SENSOR WITH MAX31865
+    temperature_sensor = TemperatureSensor(max31865, PINS, MAX31865_CONFIG)
+
+    # INITIALIZE PRESSURE SENSOR HANDLER
+    pressure_sensor = PressureMonitor(utime, asyncio, Pin, PINS, ADC)
+
+    # INITIALIZE HEATING SPEED CALCULATOR
+    heating_speed_calculator = HeatingSpeedCalculator(utime, asyncio)
+
+    # LOAD SAVED SETTINGS
+    load_settings(json, brew_data)
+
+    # INITIALIZE THERMOSTAT
+    thermostat = Thermostat(brew_data, TARGET_TEMPERATURES, RELAY_HEATER, temperature_sensor)
+
+    # INITIALIZE PUMP RATIO CALCULATOR
+    pump_ratio_calculator = PumpRatioCalculator(utime, asyncio)
+
+    # INITIALIZE BREW VALUES
+    pump_ratio = 0
+    brew_cycle_counter = 0
+    brew_pressure = FEATURES['brew_pressure_bar']
+    soft_pressure_release_time = FEATURES['soft_pressure_release_time']
+    brew_pressure_reached_flag = False
+    
+    
+    # ============================================================================
+    # BACKFLUSH -  MAIN LOOP
+    # ============================================================================
+
+    # If brew Switch is on at boot start backflush cleaning program
+    if SWITCH_BREW.value():
+        await run_backflush(
+            RELAY_PUMP,   
+            RELAY_SOLENOID,
+            RELAY_HEATER,
+            SWITCH_BREW,
+            SWITCH_WATER,
+            SWITCH_STEAM,
+            LED_BREW_SWITCH,
+            LED_WATER_SWITCH,
+            LED_STEAM_SWITCH,
+            temperature_sensor,
+            pressure_sensor,
+            brew_data,
+            thermostat
+        )
         
-        # Initialize counter for brewing cycles
-        brew_cycle_counter = 0
         
-        # Set solenoid an on for brewing
-        relay_solenoid.value(1)
+    # ============================================================================
+    # FAST HEATUP - MAIN LOOP
+    # ============================================================================
+    
+    # If fast heatup mode is on, start fast heatup program
+    if FEATURES['fast_heatup_mode_flag']:
+#        brew_data.set_mode('fast_heatup')
+        await fast_heatup(RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER, utime, temperature_sensor)
         
-        # Set pump on for brewing
-        relay_pump.value(1)
-        
-        ## BREW LOOP ##
-        # Run brew cycle with heat cycling as long as brew switch is on
-        while(switch_brew.value()):
-            relay_heater.value(1)
-            utime.sleep(0.4)
-            relay_heater.value(0)
-            utime.sleep(0.2)
-            # brew_cycle_counter += 1 
+    while True:
             
-        # Set heater off after brewing for security reason
-        relay_heater.value(0)
+        # Get brew settings from brew_data object
+        if new_settings_awailable:
+            brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()
+            new_settings_awailable = False
         
-        # Set pump off
-        relay_pump.value(0)
+        # Read pt100 sensor temperature
+        boiler_temperature = temperature_sensor.read_temperature()
+                
+        # Save temperature data
+        brew_data.set_boiler_temperature(boiler_temperature)
         
-        ## SLOW PRESSURE RELEASE ##
-        utime.sleep(soft_pressure_release_time)
+        # Read pressure sensor
+        pressure_bar = pressure_sensor.get_pressure()
+        
+        # Save pressure data
+        brew_data.set_pressure(pressure_bar)
+        
+        # Calculate heating speed
+        heating_speed = heating_speed_calculator.get_heating_speed(boiler_temperature)
+        
+        # Save heating speed
+        brew_data.set_heating_speed(heating_speed)
+            
+        # RUN THERMOSTAT
+        thermostat.run()
+        
+        # PRINT VALUES
+        print_values(brew_data, temperature_sensor, heating_speed, RELAY_HEATER, RELAY_SOLENOID, RELAY_PUMP)
+        
+        # Set delay for resource sharing
+        await asyncio.sleep_ms(50)
+        
+        
+    # ============================================================================
+    # BREW MODE - MAIN LOOP
+    # ============================================================================
+        
+        # If brew swith is on start brewing 
+        if SWITCH_BREW.value():
+            
+            # Set mode to brew
+            brew_data.set_mode('BREW')## LATER!!! ADD MODE FOR NO PRESSURE RESISTANCE
+            
+            # Set heater of for safety
+            RELAY_HEATER.value(0)
+            
+            
+        # ============================================================================
+        # PRE-INFUSION - BREW MODE - MAIN LOOP
+        # ============================================================================
+        
+            if FEATURES['pre_infusion_mode_flag']:
+            
+                # Start pre-infusion program function
+                await pre_infusion(RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER, SWITCH_BREW, utime, temperature_sensor, pressure_sensor, brew_data)#,ble_handler)
             
         
-        # Set soleinoid off
-        relay_solenoid.value(0)
+        # ============================================================================
+        # BREW LOOP - BREW MODE - MAIN LOOP
+        # ============================================================================
+           
+#            # Set mode to brewing
+#             brew_data.set_mode('brew loop initialization')
+            
+            # Initialize brew
+            pump_ratio_calculator.start()
+            
+            # Set solenoid an on for brewing
+            RELAY_SOLENOID.value(1)
+            
+            # Set pump on for brewing
+            RELAY_PUMP.value(1)
+            
+            start_time = utime.ticks_ms()
+            last_print_time = start_time
+            last_pump_ratio_time = start_time
+                
+            # Set mode for brew loop
+            brew_data.set_mode('brew loop')
 
+            # Run brew cycle with heat cycling as long as brew switch is on
+            while(SWITCH_BREW.value()):
 
-    ### HOT WATER MODE AND API MODE ###       
-    
-    # If water switch is on 
-    if switch_water.value():
-        
-        ## API MODE ##
-        # If steam switch is turned on before, then start api
-        if switch_steam.value():
+                
+                # Initialize timer
+                elapsed_ms = utime.ticks_diff(utime.ticks_ms(), start_time)
+                
+                
+                # ===== HEATER ===== #
+                
+                # Read pt100 sensor temperature
+                boiler_temperature = temperature_sensor.read_temperature()
+                
+                # Save temperature value for sharing
+                brew_data.set_boiler_temperature(boiler_temperature)
+                
+                
+                # Cycle heater of for 0.5ms and on 0.1s
+                if (elapsed_ms % 150) < 100:
+                    
+                    # Set heater relay off
+                    RELAY_HEATER.value(0)
+                
+                else:
+                    # Set heater relay on
+                    RELAY_HEATER.value(1)
+                
+                
+                # ===== PRESSURE ===== #
+                
+                # Get pressure
+                pressure_bar = pressure_sensor.get_pressure()
+                
+                # Save pressure value for sharing
+                brew_data.set_pressure(pressure_bar)
+                
+                # If pressure is under brew pressure cycling range, keep pump on
+                if pressure_bar < brew_pressure -1:
+                    RELAY_PUMP.value(1)
+                    pump_ratio_calculator.set_pump_on()
+                
+                # If pressure is on target cycling range, use short pulses to minimize pressure spikes
+                elif pressure_bar < brew_pressure:
+                    brew_pressure_reached_flag = True
+                    RELAY_PUMP.value(1)
+                    pump_ratio_calculator.set_pump_on()
+                    await asyncio.sleep(0.035)        #utime.sleep(0.035)
+                    RELAY_PUMP.value(0)
+                    pump_ratio_calculator.set_pump_off()
+                
+                else:
+                    RELAY_PUMP.value(0)
+                    pump_ratio_calculator.set_pump_off()
+                    
+                if utime.ticks_diff(utime.ticks_ms(), last_pump_ratio_time) >= 2000:
+                    pump_ratio = round(pump_ratio_calculator.get_ratio(), 2)
+                    last_pump_ratio_time = utime.ticks_ms()
+                               
+                
+                # Add pause to share resources
+                await asyncio.sleep_ms(50)
             
-            # Set mode 'api'
-            brew_data.set_mode('api')
             
-            # Turn of relays for safety reason
-            relay_pump.value(0)
-            relay_solenoid.value(0)
-            relay_heater.value(0)
+            # ============================================================================
+            # PRESSURE SOFT RELEASE - BREW MODE - MAIN LOOP
+            # ============================================================================
+                        
+            # Set pump off
+            RELAY_PUMP.value(0)
             
-            # turn on api
-            network_settings_api()
+            # Check pressure
+            if pressure_sensor.get_pressure() >= 2: # LATER: >= FEATURES['min_soft_pressure_release_trigger_pressure']
+#                brew_data.set_mode('soft pressure release')
+                for x in range(soft_pressure_release_time): # LATER ADD BETTER TIMING
+                    for y in range(5):
+                        await asyncio.sleep(0.2)
+                
             
-            # Set api flag true for setting refresh
-            api_flag = True
-        
-        ## HOT WATER MODE ##
-        # If steam swith is not on, set heater and pump on and start water loop
-        else:
+            # ============================================================================
+            # PRESSURE DRAIN - BREW MODE - MAIN LOOP
+            # ============================================================================
+
+            # Set soleinoid off
+            RELAY_SOLENOID.value(0)
+            if FEATURES['after_brew_pressure_drain_flag']:
+                brew_data.set_mode('after brew pressure drain')
+                pressure_bar = pressure_sensor.get_pressure()
+                brew_data.set_pressure(pressure_bar)
+                
+                # Cycle solenoid for pressure to release 
+                while pressure_bar > 1.5:
+                    print("Pressure: " + str(pressure_bar) + " bar")
+                    await asyncio.sleep(0.5)
+                    RELAY_SOLENOID.value(1)
+                    await asyncio.sleep(0.5)
+                    RELAY_SOLENOID.value(0)
+                    pressure_bar = pressure_sensor.get_pressure()
+                    
+                    
+    # ============================================================================
+    # HOT WATER MODE - MAIN LOOP
+    # ============================================================================
+
+        # If water switch is on
+        if SWITCH_WATER.value():
             
             # Set mode to 'water'
-            brew_data.set_mode('water')
+            brew_data.set_mode('WATER')
             
             # Set on boiler heater
-            relay_heater.value(1)
-                
+            RELAY_HEATER.value(1)
+            
             # set on water
-            relay_pump.value(1)
+            RELAY_PUMP.value(1)
             
             # Run cycle for hot water as long as hot water switch is on
-            while (switch_water.value()):
-                utime.sleep(0.1)
+            while (SWITCH_WATER.value()):
+                await asyncio.sleep_ms(50)
                 
             # Set heater and pump relays off after hot water kloop
-            relay_pump.value(0)
-            relay_heater.value(0)
+            RELAY_PUMP.value(0)
+            RELAY_HEATER.value(0)
+           
+    # ============================================================================
+    # STEAM MODE - MAIN LOOP
+    # ============================================================================
     
+        if SWITCH_STEAM.value():
+            
+            # Set mode to steam
+            brew_data.set_mode('STEAM')
+        
+        else:
+    
+            # Set mode to IDLE
+            brew_data.set_mode('IDLE')
+            
+# ============================================================================
+# ASYNC HANDLING
+# ============================================================================
 
+# MUUTETAAN SIISTIMMÄKSI !!!!!!!!
+SWITCH_BREW, SWITCH_WATER, SWITCH_STEAM, RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER, LED_BREW_SWITCH, LED_WATER_SWITCH, LED_STEAM_SWITCH = get_IO(Pin, ADC, PINS)
 
+# INITIALIZE MAIN DATA HANDLER
+brew_data = BrewData(SWITCH_BREW, SWITCH_STEAM, SWITCH_WATER)
+
+async def async_main():
+    await asyncio.gather(ble_communication(brew_data), main_loop(brew_data))
+asyncio.run(async_main())

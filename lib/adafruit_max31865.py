@@ -62,7 +62,7 @@ _RTD_B = -5.775e-7
 class MAX31865:
     """Driver for the MAX31865 thermocouple amplifier."""
     def __init__(
-        self, rtd_nominal=100, ref_resistor=430.0, wires=2,
+        self, rtd_nominal=100, ref_resistor=430.0, wires=3,
         pin_sck = None, pin_mosi = None, pin_miso = None, pin_cs = None
         ):
 

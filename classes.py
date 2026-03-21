@@ -72,16 +72,20 @@ class BrewData:
         self.steam_temperature = 125
         self.pressure_soft_release_time = 0
         self.pre_heat_time = 0
-        self.mode = "idle"
+        self.mode = "IDLE"
         self.boiler_temperature = 0
         self.pressure = 0
         self.target_temperature = 0
         self.heating_speed = 0
     
+    
     # Function to set mode value
     def set_mode(self, mode):
         self.mode = mode
     
+    def set_target_temperature(self, target_temperature):
+        self.target_temperature = target_temperature
+        
     # Function to set brew settings
     def set_settings(self, brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time):
         self.brew_temperature = brew_temperature
@@ -119,6 +123,11 @@ class BrewData:
         mode = self.mode
         
         return mode
+    
+    def get_target_temperature(self):
+        target_temperature = self.target_temperature
+        
+        return target_temperature
     
     # Function to get brew settings
     def get_settings(self):
@@ -217,7 +226,7 @@ class BrewData:
 class PressureMonitor:
     def __init__(self, utime, asyncio_module, Pin, PINS, ADC):
         
-        self.pressure_sensor  = ADC(Pin(PINS['PRESSURE_ADC_PIN_NUMBER']))
+        self.pressure_sensor  = ADC(Pin(PINS['PRESSURE_ADC']))
         self.asyncio          = asyncio_module
         self.utime            = utime
         self.number_of_cycles = 1
@@ -312,69 +321,97 @@ class PressureMonitor:
 #### Class for thermostat ####  
 
 class Thermostat:
-    def __init__(self):
+    def __init__(self, brew_data, TARGET_TEMPERATURES, RELAY_HEATER, temperature_sensor):
         self.cycle_count = 0
+        self.brew_data = brew_data
+        self.brew_mode = ""
+        self.TARGET_TEMPERATURES = TARGET_TEMPERATURES
+        self.RELAY_HEATER = RELAY_HEATER
+        self.state = 'NOT READY'
+        self.temperature_sensor = temperature_sensor
+
         
-    def run(self, brew_data, switch_steam, relay_heater):
+    def run(self): # def run(self, brew_data, switch_steam, RELAY_HEATER):
+        
+        # Get brew mode
+        mode = self.brew_data.get_mode()
         
         # Get boiler data
-        boiler_temperature, brew_temperature, steam_temperature, heating_speed = brew_data.get_boiler_stats()
+#        boiler_temperature, brew_temperature, steam_temperature, heating_speed =
+
+        heating_speed = self.brew_data.get_heating_speed()
+        
+        boiler_temperature = self.temperature_sensor.read_temperature()
+        
+        
+        
+        
+        
+        
         
         # Get target temperature
-        target_temperature = Thermostat.get_target_temperature(switch_steam, brew_temperature, steam_temperature)
-        
-        # Set heating mode to brew_data
-        Thermostat.set_mode(brew_data, boiler_temperature, target_temperature, brew_temperature)
+        target_temperature = self.TARGET_TEMPERATURES[f'{mode}']
+        print("target temperature: " + str(self.TARGET_TEMPERATURES[f'{mode}']))
 
+        # Nullify negative heating speed values
+        if heating_speed < 0:
+            heating_speed = 0
+            
         # If boiler temperature is lower than target temperature - heating speed
         if (boiler_temperature < (target_temperature - (heating_speed * 2))):
             
             # Start heating the boiler          
             if (Thermostat.heat_cycler(self, boiler_temperature, target_temperature)):
-                relay_heater.value(1)
+                print("boiler_temperature" + str(boiler_temperature))
+                print("target_temperature" + str(target_temperature))
+                self.RELAY_HEATER.value(1)
+                print("thermostat heating")
             else:
-                relay_heater.value(0)
+                self.RELAY_HEATER.value(0)
+                print("thermostat cooling")
                 
         # Othervice, stop heating the boiler
         else:
-            relay_heater.value(0)
+            self.RELAY_HEATER.value(0)
     
   
-    def get_target_temperature(switch_steam, brew_temperature, steam_temperature):
-        
-        # If steam switch is off: set brewing temperature as a target temperature
-        if switch_steam.value() == 0:
-            target_temperature = brew_temperature     
-        
-        # Otherwise set steam temperature as a target temperature
+        if abs(target_temperature - boiler_temperature) <= 1:
+            self.state = 'READY' 
+        elif boiler_temperature > target_temperature: 
+            self.state = 'TEMPERATURE HIGH' 
         else:
-            target_temperature = steam_temperature
+            self.state = 'NOT READY'
+    
+    def get_state(self):
+        state = self.state
+        return state
         
-        return target_temperature  
+        
+#     def get_target_temperature(switch_steam, brew_temperature, steam_temperature, mode):
+#         
+# 
+#     # If steam switch is off: set brewing temperature as a target temperature
+#         if      mode == 'IDLE':
+#             target_temperature = brew_temperature     
+#         
+#         else if mode == 'steam':
+#             target_temperature = steam_temperature
+#         
+#         else if mode == 'backflush_phase_1':
+#             target_temperature = 80 # backflush_phase_1_temperature
+#             
+#         else if mode == 'backflush_phase_2':
+#             target_temperature = 90 # backflush_phase_2_temperature
+#             
+#         else if mode == 'backflush_phase_3':
+#             target_temperature = 102 # backflush_phase_3_temperature
+#         
+#         else:
+#             target_temperature = 0
+#             print('Thermostat is not supporting mode')
+#         
+#         return target_temperature  
       
-    def set_mode(brew_data, boiler_temperature, target_temperature, brew_temperature):
-            # If boiler is at least 1 degree celsius lower than target temperature
-        if boiler_temperature < target_temperature -1:
-                
-                # Set mode to "Heating"
-                brew_data.set_mode("Heating")
-        
-        # Otherwise if target temperature is at leas 1 degree celsius warmer than target temperature
-        elif boiler_temperature >  target_temperature +1:
-            
-            # Set mode to "Cooling down"
-            brew_data.set_mode("Cooling down")
-        
-        # Otherwise
-        else:
-            
-            # If target temperature is same as brewing temperature set mode to "Brew standby"
-            if target_temperature == brew_temperature:
-                brew_data.set_mode("Brew standby")
-            
-            # Otherwise set mode to "Steam standby"
-            else:
-                brew_data.set_mode("Steam standby") 
             
     def heat_cycler(self, temperature, target_temperature):
         return_bool = False
@@ -395,6 +432,7 @@ class Thermostat:
             cycle_count = cycle_count +10
         
         self.cycle_count = cycle_count
+        
         if return_bool:
             return True
         else:
@@ -456,10 +494,10 @@ class TemperatureSensor:
             wires        = MAX31865_CONFIG['NUMBER_OF_WIRES'],
             rtd_nominal  = MAX31865_CONFIG['RTD_NOMINAL'],
             ref_resistor = MAX31865_CONFIG['REF_RESISTOR'],
-            pin_sck      = PINS['TEMP_SCK_PIN_NUMBER'],
-            pin_mosi     = PINS['TEMP_MOSI_PIN_NUMBER'],
-            pin_miso     = PINS['TEMP_MISO_PIN_NUMBER'],
-            pin_cs       = PINS['TEMP_CS_PIN_NUMBER'],
+            pin_sck      = PINS['TEMP_SCK'],
+            pin_mosi     = PINS['TEMP_MOSI'],
+            pin_miso     = PINS['TEMP_MISO'],
+            pin_cs       = PINS['TEMP_CS'],
             )
         self.temps = [0, 0, 0, 0, 0 ,0 ,0]
         self.temps_i = 0

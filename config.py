@@ -24,23 +24,28 @@ FEATURES = {
 
 PINS = {
     # Input switch's
-    'SWITCH_BREW_PIN_NUMBER'    : 7,
-    'SWITCH_WATER_PIN_NUMBER'   : 8,
-    'SWITCH_STEAM_PIN_NUMBER'   : 9,
-
+    'SWITCH_BREW'      : 7,
+    'SWITCH_WATER'     : 8,
+    'SWITCH_STEAM'     : 9,
+    
+    # Switch led's
+    'LED_BREW_SWITCH'  : 14,
+    'LED_WATER_SWITCH' : 15,
+    'LED_STEAM_SWITCH' : 16,
+    
     # Output relays
-    'RELAY_PUMP_PIN_NUMBER'     : 11,
-    'RELAY_SOLENOID_PIN_NUMBER' : 12,
-    'RELAY_HEATER_PIN_NUMBER'   : 13,
+    'RELAY_PUMP'       : 11,
+    'RELAY_SOLENOID'   : 12,
+    'RELAY_HEATER'     : 13,
     
     # Temperature MAX31865 (SPI)
-    'TEMP_SCK_PIN_NUMBER'       : 6,
-    'TEMP_MOSI_PIN_NUMBER'      : 3,
-    'TEMP_MISO_PIN_NUMBER'      : 4,
-    'TEMP_CS_PIN_NUMBER'        : 5,
+    'TEMP_SCK'         : 6,
+    'TEMP_MOSI'        : 3,
+    'TEMP_MISO'        : 4,
+    'TEMP_CS'          : 5,
     
     # Pressure sensor (ADC)
-    'PRESSURE_ADC_PIN_NUMBER'   : 28
+    'PRESSURE_ADC'     : 28
     }
 
 # ============================================================================
@@ -53,4 +58,18 @@ MAX31865_CONFIG = {
     'REF_RESISTOR'       : 430.0
     }
 
-            
+# ============================================================================
+# TEMPERATURES Celsius
+# ============================================================================
+
+TARGET_TEMPERATURES = {
+    'IDLE'    : 98,
+    'BREW'    : 98, 
+    'STEAM'   : 137,
+    
+    # Backflush program temperatures
+    'BACKFLUSH_PHASE_1' : 95,
+    'BACKFLUSH_PHASE_2' : 100,
+    'BACKFLUSH_PHASE_3' : 110,
+    'BACKFLUSH_END'     : 98
+    }

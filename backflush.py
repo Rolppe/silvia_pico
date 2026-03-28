@@ -3,21 +3,21 @@ import asyncio
 from machine import Pin
 
 async def run_backflush(
-    RELAY_PUMP,   
-    RELAY_SOLENOID,
-    RELAY_HEATER,
-    SWITCH_BREW,
-    SWITCH_WATER,
-    SWITCH_STEAM,
-    LED_BREW_SWITCH,
-    LED_WATER_SWITCH,
-    LED_STEAM_SWITCH,
     temperature_sensor,
     pressure_sensor,
     brew_data,
     thermostat
     ):
 
+    
+    # ────────────────────────────────────────────────
+    # Hardware
+    # ────────────────────────────────────────────────
+    
+    LED_SWITCH_BREW, LED_SWITCH_WATER, LED_SWITCH_STEAM = brew_data.get_leds()
+    SWITCH_BREW, SWITCH_WATER, SWITCH_STEAM             = get_switches()
+    RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER            = brew_data.get_relays()
+    
     
     # ────────────────────────────────────────────────
     # CONSTRAINTS

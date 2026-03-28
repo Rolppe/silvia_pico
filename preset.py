@@ -1,3 +1,5 @@
+# MUUTETAAN NIMEKSI PRESETS
+
 # ============================================================================
 # FEATURES
 # ============================================================================
@@ -6,11 +8,11 @@ FEATURES = {
     # Core features
     'pid_control_flag'               : True,   # PID temperature control (standby/steam)
     'pressure_control_flag'          : True,   # Dynamic pressure control
-    'pre_infusion_flag'              : True,   # Pre-infusion before brewing
     'fast_heatup_mode_flag'          : False,
     'pre_infusion_mode_flag'         : True,
     'after_brew_pressure_drain_flag' : False,
-    
+    'print_values_flag'              : False,
+    'soft_pressure_release_flag'     : True,
     
     'pre_infusion_pressure_buildup_time' : 0,
     'pre_infusion_time'                  : 5,
@@ -29,9 +31,9 @@ PINS = {
     'SWITCH_STEAM'     : 9,
     
     # Switch led's
-    'LED_BREW_SWITCH'  : 14,
-    'LED_WATER_SWITCH' : 15,
-    'LED_STEAM_SWITCH' : 16,
+    'LED_SWITCH_BREW'  : 14,
+    'LED_SWITCH_WATER' : 15,
+    'LED_SWITCH_STEAM' : 16,
     
     # Output relays
     'RELAY_PUMP'       : 11,

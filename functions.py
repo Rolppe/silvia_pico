@@ -1,81 +1,54 @@
-import asyncio
-
-# ============================================================================
-#   GET_IO
-# ============================================================================
-
-def get_IO(Pin, ADC, PINS):
-    SWITCH_BREW     = Pin(PINS['SWITCH_BREW'], Pin.IN, Pin.PULL_DOWN)
-    SWITCH_WATER    = Pin(PINS['SWITCH_WATER'], Pin.IN, Pin.PULL_DOWN)
-    SWITCH_STEAM    = Pin(PINS['SWITCH_STEAM'], Pin.IN, Pin.PULL_DOWN)
-    
-    RELAY_PUMP      = Pin(PINS['RELAY_PUMP'], Pin.OUT, value=0)
-    RELAY_SOLENOID  = Pin(PINS['RELAY_SOLENOID'], Pin.OUT, value=0)
-    RELAY_HEATER    = Pin(PINS['RELAY_HEATER'], Pin.OUT, value=0)
-    
-    LED_BREW_SWITCH = Pin(PINS['LED_BREW_SWITCH'], Pin.OUT, value=0)
-    LED_WATER_SWITCH = Pin(PINS['LED_WATER_SWITCH'], Pin.OUT, value=0)
-    LED_STEAM_SWITCH = Pin(PINS['LED_STEAM_SWITCH'], Pin.OUT, value=0)
-    
-    
-    return SWITCH_BREW, SWITCH_WATER, SWITCH_STEAM, RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER, LED_BREW_SWITCH, LED_WATER_SWITCH, LED_STEAM_SWITCH
-
-
+import os
 # ============================================================================
 #  PRE-INFUSION
 # ============================================================================
 
-async def pre_infusion(relay_pump, relay_solenoid, RELAY_HEATER, switch_brew, utime, sensor, pressure_monitor, brew_data):
+async def pre_infusion(brew_data, utime, asyncio):
     
-    # ===== PRESSURE DRAIN (TO BE MOVED) ===== #
-#    brew_data.set_mode('pre-infusion initialization')
-    # Read sensor pressure
-    pressure_bar = pressure_monitor.get_pressure()
-    brew_data.set_pressure(pressure_bar)
+    RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER= brew_data.get_relays()
+    SWITCH_BREW = brew_data.get_switch_brew()
     
-    # Read pt100 sensor temperature
-    boiler_temperature = sensor.read_temperature()
-    brew_data.set_boiler_temperature(boiler_temperature)
+    brew_data.set_mode('pre-infusion initialization')
+    pressure = brew_data.get_pressure()
+    
+    # Get boiler temperature
+    boiler_temperature = brew_data.get_boiler_temperature()
     
     # Open solenoid for water to flow to grouphead
-    relay_solenoid.value(1)
+    RELAY_SOLENOID.value(1)
     
     # If theres a pressure in system, let stabilize to pre-infusion pressure
-    while pressure_bar > 1.9 and switch_brew.value():
+    while pressure > 1.9 and SWITCH_BREW.value():
         
-#        brew_data.set_mode('pre-infusion pressure stabilization')
+        brew_data.set_mode('pre-infusion pressure stabilization')
         
         # Read sensor pressure
-        pressure_bar = pressure_monitor.get_pressure()
-        brew_data.set_pressure(pressure_bar)
+        pressure = brew_data.get_pressure()
         
-        # Read pt100 sensor temperature
-        boiler_temperature = sensor.read_temperature()
-        brew_data.set_boiler_temperature(boiler_temperature)
+        # Get boiler temperature
+        boiler_temperature = brew_data.get_temperature()
 
         await asyncio.sleep_ms(100)
         
     # ===== PRE-INFUSION PRESSURE BUILD UP ===== #
     
     # Start building pre-infusion pressure by turning pump on.
-    relay_pump.value(1)
+    RELAY_PUMP.value(1)
     
     # Keep pump on till almost pre-infusion pressure, just a bit under to prevent pressure overshooting
-    while pressure_bar < 1.9 and switch_brew.value():
+    while pressure < 1.9 and SWITCH_BREW.value():
             
-#        brew_data.set_mode('pre-infusion pressure build-up')
+        brew_data.set_mode('pre-infusion pressure build-up')
         
         # Read sensor pressure
-        pressure_bar = pressure_monitor.get_pressure()
-        brew_data.set_pressure(pressure_bar)
+        pressure = brew_data.get_pressure()
         
-        # Read pt100 sensor temperature
-        boiler_temperature = sensor.read_temperature()
-        brew_data.set_boiler_temperature(boiler_temperature)
+        # Get boiler temperature
+        boiler_temperature = brew_data.get_boiler_temperature()
      
         await asyncio.sleep_ms(50)
 
-    relay_pump.value(0)
+    RELAY_PUMP.value(0)
     
     # Let pressure stabilize
     await asyncio.sleep_ms(50)
@@ -88,24 +61,22 @@ async def pre_infusion(relay_pump, relay_solenoid, RELAY_HEATER, switch_brew, ut
     # ===== PREINFUSION WITH REACHED PRESSURE ===== #
     
     # Create timed preinfusion loop
-    while utime.ticks_diff(end, utime.ticks_ms()) > 0 and switch_brew.value():
+    while utime.ticks_diff(end, utime.ticks_ms()) > 0 and SWITCH_BREW.value():
         
-#        brew_data.set_mode('pre-infusion main')
+        brew_data.set_mode('pre-infusion main')
         
         # Read sensor pressure
-        pressure_bar = pressure_monitor.get_pressure()
-        brew_data.set_pressure(pressure_bar)
+        pressure = brew_data.get_pressure()
         
-        # Read pt100 sensor temperature
-        boiler_temperature = sensor.read_temperature()
-        brew_data.set_boiler_temperature(boiler_temperature)
+        # Get boiler temperature
+        boiler_temperature = brew_data.get_boiler_temperature()
         
         # ===== PRESSURE HANDLING ===== #
                
-        if pressure_monitor.get_pressure() < 2.0:
-            relay_pump.value(1)
+        if brew_data.get_pressure() < 2.0:
+            RELAY_PUMP.value(1)
             await asyncio.sleep_ms(35)
-            relay_pump.value(0)
+            RELAY_PUMP.value(0)
         
         await asyncio.sleep_ms(50)
 
@@ -114,14 +85,14 @@ async def pre_infusion(relay_pump, relay_solenoid, RELAY_HEATER, switch_brew, ut
 # FAST HEATUP
 # ============================================================================
 
-async def fast_heatup(relay_pump, relay_solenoid, RELAY_HEATER, utime, sensor): 
+async def fast_heatup(RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER, utime, sensor): 
         
     # Fill the boiler
-    relay_solenoid.value(1)
-    relay_pump.value(1)
+    RELAY_SOLENOID.value(1)
+    RELAY_PUMP.value(1)
     await asyncio.sleep(2)
-    relay_pump.value(0)
-    relay_solenoid.value(0)
+    RELAY_PUMP.value(0)
+    RELAY_SOLENOID.value(0)
     
    
     # Heat the boiler
@@ -155,11 +126,11 @@ async def fast_heatup(relay_pump, relay_solenoid, RELAY_HEATER, utime, sensor):
         await asyncio.sleep(1)
         
     # Fill the boiler
-    relay_solenoid.value(1)
-    relay_pump.value(1)
+    RELAY_SOLENOID.value(1)
+    RELAY_PUMP.value(1)
     await asyncio.sleep(0.5)
-    relay_pump.value(0)
-    relay_solenoid.value(0)
+    RELAY_PUMP.value(0)
+    RELAY_SOLENOID.value(0)
     
     # Sleep while boiler stabilizes
     await asyncio.sleep(15)
@@ -169,30 +140,28 @@ async def fast_heatup(relay_pump, relay_solenoid, RELAY_HEATER, utime, sensor):
 # PRINT VALUES
 # ============================================================================
 
-def print_values(brew_data, sensor, heating_speed, RELAY_HEATER, relay_solenoid, relay_pump):
+def print_values(brew_data):
  
-    # Get boiler temperature
-    boiler_temperature = sensor.read_temperature()
+    # Get state of data
+    boiler_temperature = brew_data.get_boiler_temperature()
+    mode               = brew_data.get_mode()
+    heating_speed      = brew_data.get_heating_speed()
     
-    # Get mode from object
-    mode = brew_data.get_mode()
+    RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER = brew_data.get_relays()
+    SWITCH_BREW, SWITCH_WATER, SWITCH_STEAM  = brew_data.get_switches()
     
-    ## Get settings from brew_data object
-    # brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()
-    
-    brew_switch_state, steam_switch_state, water_switch_state = brew_data.get_switches_state()
     
     # Print values
-    print("Mode: ", mode)
-    print("Boiler temperature: ", boiler_temperature)
-    print("heating_speed", heating_speed)
-    print("switch_brew: ", brew_switch_state.value())
-    print("switch_water: ", water_switch_state.value()) 
-    print("switch_steam: ", steam_switch_state.value())
-    print("RELAY_HEATER: ", RELAY_HEATER.value())
-    print("relay_solenoid: ", relay_solenoid.value())
-    print("relay_pump: ", relay_pump.value())
-    print("","")
+    print('Mode: ', mode)
+    print('Boiler temperature: ', boiler_temperature)
+    print('heating_speed: ',      heating_speed)
+    print('switch_brew: ',        SWITCH_BREW.value())
+    print('switch_water: ',       SWITCH_WATER.value()) 
+    print('switch_steam: ',       SWITCH_STEAM.value())
+    print('RELAY_HEATER: ',       RELAY_HEATER.value())
+    print('RELAY_SOLENOID: ',     RELAY_SOLENOID.value())
+    print('RELAY_PUMP: ',         RELAY_PUMP.value())
+    print('')
 
 
 # ============================================================================
@@ -202,21 +171,31 @@ def print_values(brew_data, sensor, heating_speed, RELAY_HEATER, relay_solenoid,
 def save_settings(brew_data, json_module):
     
     # Get settings from brew_data object
-    brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time = brew_data.get_settings()
+    brew_temperature           = brew_data.get_brew_temperature()
+    steam_temperature          = brew_data.get_steam_temperature()
+    pre_infusion_time          = brew_data.get_pre_infusion_time()
+    pressure_soft_release_time = brew_data.get_pressure_soft_release_time()
+    pre_heat_time              = brew_data.get_pre_heat_time()
+    pre_infusion_mode          = brew_data.get_pre_infusion_mode()
+    pressure_soft_release_mode = brew_data.get_pressure_soft_release_mode()
+    fast_heatup_mode           = brew_data.get_fast_heatup_mode()
     
     # Form the data
     data = {
-        "brew_temperature": brew_temperature,
-        "steam_temperature": steam_temperature,
-        "pre_infusion_time": pre_infusion_time,
-        "pressure_soft_release_time": pressure_soft_release_time,
-        "pre_heat_time": pre_heat_time
+        'brew_temperature'          : brew_temperature,
+        'steam_temperature'         : steam_temperature,
+        'pre_infusion_time'         : pre_infusion_time,
+        'pressure_soft_release_time': pressure_soft_release_time,
+        'pre_infusion_mode'         : pre_infusion_mode,
+        'pressure_soft_release_mode': pressure_soft_release_mode,
+        'fast_heatup_mode'          : fast_heatup_mode
     }
     
     # Save data to file in json format
     with open('settings.txt', 'w') as file:
         json_module.dump(data, file)
-
+    
+    print("save_settings")
 
 # ============================================================================
 # LOAD SETTINGS
@@ -228,21 +207,36 @@ def load_settings(json_module, brew_data):
     try:
         with open('settings.txt', 'r') as file:
             data = json_module.load(file)
-            brew_temperature = data.get("brew_temperature")
-            steam_temperature = data.get("steam_temperature")
-            pre_infusion_time = data.get("pre_infusion_time")
-            pressure_soft_release_time = data.get("pressure_soft_release_time")
-            pre_heat_time = data.get("pre_heat_time")
+            
+            brew_temperature           = data.get('brew_temperature')
+            steam_temperature          = data.get('steam_temperature')
+            pre_infusion_time          = data.get('pre_infusion_time')
+            pressure_soft_release_time = data.get('pressure_soft_release_time')
+            pre_infusion_mode          = data.get('pre_infusion_mode')
+            pressure_soft_release_mode = data.get('pressure_soft_release_mode')
+            fast_heatup_mode           = data.get('fast_heatup_mode')
         
-    # If data is not available: return False
-    except OSError:
+        # Set settings to brew_data object
+        brew_data.set_brew_temperature(brew_temperature)
+        brew_data.set_steam_temperature(steam_temperature)
+        brew_data.set_pre_infusion_time(pre_infusion_time)
+        brew_data.set_pressure_soft_release_time(pressure_soft_release_time)
+        brew_data.set_pre_infusion_mode(pre_infusion_mode)
+        brew_data.set_pressure_soft_release_mode(pressure_soft_release_mode)
+        brew_data.set_fast_heatup_mode(fast_heatup_mode)
+        
+        # Return True
+        return True
+    
+    # If data is not available: remove settings file and return False
+    except (OSError, ValueError):   # ValueError = JSON syntax error 
+        try:
+            os.remove('settings.txt')
+            print('Virheellinen tai rikki settings.txt → poistettu')
+        except OSError:
+            print('Virhe tiedoston poistamisessa')
+        
         return False
-    
-    # Set settings to brew_data object
-    brew_data.set_settings(brew_temperature, steam_temperature, pre_infusion_time, pressure_soft_release_time, pre_heat_time)
-    
-    # Return True
-    return True
 
 
 

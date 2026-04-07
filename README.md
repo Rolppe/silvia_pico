@@ -29,6 +29,8 @@ A modern, open-source firmware that replaces the original thermostat and manual 
 4. Review and adjust `config.py` according to your hardware/setup
 5. Power on → connect via Bluetooth or the iOS companion app
 
+
+##IN PROGRESS ->
 **Full installation guide → [Installation](docs/installation.md)**
 
 ### 📖 Full Documentation

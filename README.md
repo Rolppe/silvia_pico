@@ -30,7 +30,7 @@ A modern, open-source firmware that replaces the original thermostat and manual 
 5. Power on → connect via Bluetooth or the iOS companion app
 
 
-**IN PROGRESS ->**
+### IN PROGRESS ->
 **Full installation guide → [Installation](docs/installation.md)**
 
 ### 📖 Full Documentation

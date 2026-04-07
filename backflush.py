@@ -2,20 +2,14 @@ import utime
 import asyncio
 from machine import Pin
 
-async def run_backflush(
-    temperature_sensor,
-    pressure_sensor,
-    brew_data,
-    thermostat
-    ):
-
+async def run_backflush(brew_data, thermostat):
     
     # ────────────────────────────────────────────────
     # Hardware
     # ────────────────────────────────────────────────
     
     LED_SWITCH_BREW, LED_SWITCH_WATER, LED_SWITCH_STEAM = brew_data.get_leds()
-    SWITCH_BREW, SWITCH_WATER, SWITCH_STEAM             = get_switches()
+    SWITCH_BREW, SWITCH_WATER, SWITCH_STEAM             = brew_data.get_switches()
     RELAY_PUMP, RELAY_SOLENOID, RELAY_HEATER            = brew_data.get_relays()
     
     
@@ -23,9 +17,9 @@ async def run_backflush(
     # CONSTRAINTS
     # ────────────────────────────────────────────────
     
-    TARGET_PRESSURE = 10
-    MAX_PULSE_TIME_MS = 4000
-    PULSES_PER_PHASE = 10
+    TARGET_PRESSURE     = 10
+    MAX_PULSE_TIME_MS   = 4000
+    PULSES_PER_PHASE    = 10
     PULSE_PAUSE_TIME_MS = 10000
     
     
@@ -34,9 +28,9 @@ async def run_backflush(
     # ────────────────────────────────────────────────
     
     def turn_off_all_leds():
-        LED_BREW_SWITCH.value(0)
-        LED_WATER_SWITCH.value(0)
-        LED_STEAM_SWITCH.value(0)
+        LED_SWITCH_BREW.value(0)
+        LED_SWITCH_WATER.value(0)
+        LED_SWITCH_STEAM.value(0)
 
     async def slow_blink(led):
         led.value(1)
@@ -67,10 +61,8 @@ async def run_backflush(
     # ────────────────────────────────────────────────
     
     async def temp_pres_handler():
-        boiler_temperature = temperature_sensor.read_temperature()
-        brew_data.set_boiler_temperature(boiler_temperature)
-        pressure = pressure_sensor.get_pressure()
-        brew_data.set_pressure(pressure)
+        boiler_temperature = brew_data.get_boiler_temperature()
+        pressure = brew_data.get_pressure()
         thermostat.run()
     
     # ────────────────────────────────────────────────
@@ -87,7 +79,6 @@ async def run_backflush(
             RELAY_SOLENOID.value(0)
             await asyncio.sleep_ms(300)
     
-    
     # ────────────────────────────────────────────────
     # PULSE
     # ────────────────────────────────────────────────
@@ -100,7 +91,7 @@ async def run_backflush(
         while True:
             await temp_pres_handler()
             
-            pressure = pressure_sensor.get_pressure()
+            pressure = brew_data.get_pressure()
             if pressure >= TARGET_PRESSURE:
                 RELAY_PUMP.value(0)
                 break
@@ -131,8 +122,8 @@ async def run_backflush(
             await asyncio.sleep_ms(10)
 
         turn_off_all_leds()
-        if phase >= 2: LED_BREW_SWITCH.value(1)
-        if phase == 3: LED_WATER_SWITCH.value(1)
+        if phase >= 2: LED_SWITCH_BREW.value(1)
+        if phase == 3: LED_SWITCH_WATER.value(1)
 
         for i in range(PULSES_PER_PHASE):
             
@@ -140,11 +131,11 @@ async def run_backflush(
             await perform_pressure_pulse()
             
             if phase == 1:
-                await slow_blink(LED_BREW_SWITCH)
+                await slow_blink(LED_SWITCH_BREW)
             elif phase == 2:
-                await slow_blink(LED_WATER_SWITCH)
+                await slow_blink(LED_SWITCH_WATER)
             elif phase == 3:
-                await slow_blink(LED_STEAM_SWITCH)
+                await slow_blink(LED_SWITCH_STEAM)
 
 
     # ────────────────────────────────────────────────
@@ -154,21 +145,21 @@ async def run_backflush(
     async def wait_for_next(phase):
         
         while phase == 1:
-            await fast_blink(LED_WATER_SWITCH)          
+            await fast_blink(LED_SWITCH_WATER)          
             await temp_pres_handler()
             
             if SWITCH_WATER.value():
                 break
         
         while phase == 2:
-            await fast_blink(LED_STEAM_SWITCH)          
+            await fast_blink(LED_SWITCH_STEAM)          
             await temp_pres_handler()
             
             if SWITCH_STEAM.value():
                 break
             
         while phase == 3:
-            await fast_blink(LED_BREW_SWITCH, LED_WATER_SWITCH, LED_STEAM_SWITCH)
+            await fast_blink(LED_SWITCH_BREW, LED_SWITCH_WATER, LED_SWITCH_STEAM)
             await temp_pres_handler()
             
             if not SWITCH_BREW.value() and not SWITCH_WATER.value() and not SWITCH_STEAM.value():
@@ -198,7 +189,6 @@ async def run_backflush(
     brew_data.set_mode('BACKFLUSH_END')
     await wait_for_next(3)
     
-
 
     RELAY_PUMP.value(0)
     RELAY_SOLENOID.value(0)

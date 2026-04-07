@@ -1,61 +1,68 @@
 # ============================================================================
 # PUMP RATIO CALCULATOR
 # ============================================================================
-
-# Function for getting ratio for pump on and off states.
 class PumpRatioCalculator:
-    def __init__(self,utime_module, asyncio_module):
-        self.asyncio = asyncio_module
+def __init__(self, utime_module, asyncio_module):
         self.utime = utime_module
-        self.pump_ratio = 0
-        self.pump_start_timer = 0
-        self.pump_stop_timer = 0
+        self.asyncio = asyncio_module
+        self.reset()
+
+
+    def reset(self):
+        now = self.utime.ticks_ms()
         self.pump_on_time = 0
         self.pump_off_time = 0
+        self.last_change = now
         self.pump_is_on = False
-        
-        
-    # Function to start timing brew
-    def start(self):
-        self.pump_stop_timer = self.utime.ticks_ms() # Start calculating pump off state
-        self.pump_is_on = False
-        
-        
-    # Function to start timing pump
+        self.last_get_ratio_time = now
+
+
+    def start(self, initial_pump_on=False):
+        self.reset()
+        if initial_pump_on:
+            self.pump_is_on = True
+
+
     def set_pump_on(self):
+        now = self.utime.ticks_ms()
+        if self.pump_is_on:
+            return
+        self.pump_off_time += self.utime.ticks_diff(now, self.last_change)
         self.pump_is_on = True
-        self.pump_start_timer = self.utime.ticks_ms() # Start calculating pump on state 
-        self.pump_off_time += self.utime.ticks_diff(self.utime.ticks_ms(), self.pump_stop_timer)
-        
-        
-    # Function to stop timing pump
+        self.last_change = now
+
+
     def set_pump_off(self):
+        now = self.utime.ticks_ms()
+        if not self.pump_is_on:
+            return
+        self.pump_on_time += self.utime.ticks_diff(now, self.last_change)
         self.pump_is_on = False
-        self.pump_stop_timer = self.utime.ticks_ms() # Start calculating pump off state
-        self.pump_on_time += self.utime.ticks_diff(self.utime.ticks_ms(), self.pump_start_timer)
-        
-        
-    # Function to get ratio
+        self.last_change = now
+
+
     def get_ratio(self):
         
-        # If pump is on, add last bit to pump_on_time
-        if self.pump_is_on:
-            self.pump_on_time += self.utime.ticks_diff(self.utime.ticks_ms(), self.pump_start_timer)
-            self.pump_start_timer = self.utime.ticks_ms()
-        
-        # If pump is off, add last bit to pump_off_time
+        now = self.utime.ticks_ms()
+                if self.pump_is_on:
+            current_on = self.pump_on_time + self.utime.ticks_diff(now, self.last_change)
+            current_off = self.pump_off_time
         else:
-            self.pump_off_time += self.utime.ticks_diff(self.utime.ticks_ms(), self.pump_stop_timer)
-            self.pump_stop_timer = self.utime.ticks_ms()
-                
+            current_on = self.pump_on_time
+            current_off = self.pump_off_time + self.utime.ticks_diff(now, self.last_change)
         
-        if self.pump_on_time + self.pump_off_time == 0:
-            return 0
+        total = current_on + current_off
+        
+        if total == 0:
+            ratio = 0.0
         else:
-            self.pump_ratio = round(self.pump_on_time / (self.pump_on_time + self.pump_off_time) * 100, 2)
-            self.pump_on_time = 0
-            self.pump_off_time = 0
-            return self.pump_ratio
+            ratio = (current_on / total) * 100
+        
+        self.pump_on_time = 0
+        self.pump_off_time = 0
+        self.last_change = now
+        
+        return round(ratio, 2)
         
         
 # ============================================================================
@@ -63,7 +70,7 @@ class PumpRatioCalculator:
 # ============================================================================
 
 class BrewStatsLogger:
-    def __init__(self_utime, asyncio):
+    def __init__(self, utime, asyncio):
         self.asyncio = asyncio_module
         self.pressure = 0
         self.start_time = 0
@@ -96,10 +103,11 @@ class BrewData:
         self.BACKFLUSH_PHASE_2_temperature = TARGET_TEMPERATURES['BACKFLUSH_PHASE_2']
         self.BACKFLUSH_PHASE_3_temperature = TARGET_TEMPERATURES['BACKFLUSH_PHASE_3']
         self.BACKFLUSH_END_temperature     = TARGET_TEMPERATURES['BACKFLUSH_END']
-        self.pressure_soft_release   = FEATURES['soft_pressure_release_flag']
-        self.fast_heatup_mode        = FEATURES['fast_heatup_mode_flag']
-        self.pre_infusion_mode       = FEATURES['pre_infusion_mode_flag']
-        self.pressure_soft_release_time = 0
+        self.pressure_soft_release_mode = FEATURES['soft_pressure_release_flag']
+        self.fast_heatup_mode           = FEATURES['fast_heatup_mode_flag']
+        self.pre_infusion_mode          = FEATURES['pre_infusion_mode_flag']
+        self.pressure_soft_release_time = FEATURES['pressure_soft_release_time']
+        self.soft_pressure_release_arming_pressure = FEATURES['soft_pressure_release_arming_pressure']
         self.pre_infusion_time  = 0
         self.brew_temperature   = 97
         self.steam_temperature  = 125
@@ -108,10 +116,12 @@ class BrewData:
         self.brew_pressure      = 8
         self.pressure           = 0
         self.target_temperature = 0
+        self.pump_ratio         = 0
         self.heating_speed      = 0
         self.fast_heatup_mode   = False
         self.setting_changed    = True
         self.mode               = "IDLE"
+    
     
 # ===== SETTERS  ====== #
 
@@ -140,16 +150,13 @@ class BrewData:
         self.pre_infusion_mode = enabled
         self.setting_changed = True
         
-        
     def set_pressure_soft_release_mode(self, enabled):
-        self.set_pressure_soft_release_mode = enabled
+        self.pressure_soft_release_mode = enabled    
         self.setting_changed = True
-        
         
     def set_pressure_soft_release_time(self, seconds):
         self.pressure_soft_release_time = seconds
         self.setting_changed = True
-        
         
     # ===== SETTERS - TARGETS ====== #
 
@@ -169,7 +176,7 @@ class BrewData:
         self.setting_changed = True
 
 
-    def set_brew_pressure(self, pressure):
+    def set_brew_pressure(self, brew_pressure):
         self.brew_pressure   = brew_pressure
         self.setting_changed = True
 
@@ -192,6 +199,10 @@ class BrewData:
     def set_pressure(self, pressure):
         self.pressure = pressure
     
+    def set_pump_ratio(self, pump_ratio):
+        self.pump_ratio = pump_ratio
+        print(pump_ratio)
+        
 
     # ===== SETTERS - TIMES ====== #
 
@@ -223,7 +234,7 @@ class BrewData:
         return mode
      
  
-     def get_fast_heatup_mode(self):
+    def get_fast_heatup_mode(self):
         fast_heatup_mode = self.fast_heatup_mode
         
         return fast_heatup_mode
@@ -236,7 +247,7 @@ class BrewData:
     
 
     def get_pressure_soft_release_mode(self):
-        pressure_soft_release = self.pressure_soft_release
+        pressure_soft_release = self.pressure_soft_release_mode
     
         return pressure_soft_release
     
@@ -283,6 +294,10 @@ class BrewData:
         
         return target_temperature
     
+    def get_soft_pressure_release_arming_pressure(self):
+        pressure = self.soft_pressure_release_arming_pressure
+        
+        return pressure
     
     # ===== GETTERS - REALTIME DATA ====== #
     
@@ -315,13 +330,17 @@ class BrewData:
         
         return boiler_temperature, brew_temperature, steam_temperature, heating_speed
     
+    def get_pump_ratio(self):
+        pump_ratio = self.pump_ratio
+        
+        return pump_ratio
     
     # ===== GETTERS - TIMES ====== #
     
     def get_pressure_soft_release_time(self):
-        pressure_soft_release_time = self.pressure_soft_release_time
-    
-        return pressure_soft_release_time
+        time = self.pressure_soft_release_time
+        
+        return time
     
     
     def get_pre_infusion_time(self):
@@ -350,7 +369,7 @@ class BrewData:
         return SWITCH_WATER
     
     
-    def get_SWITCH_STEAM(self):
+    def get_switch_steam(self):
         SWITCH_STEAM = self.SWITCH_STEAM
         
         return SWITCH_STEAM
@@ -501,15 +520,9 @@ class Thermostat:
     def run(self): # def run(self, brew_data, switch_steam, RELAY_HEATER):
         
         # Get brew mode
-        mode = self.brew_data.get_mode()
-        
-        # Get boiler data
-#        boiler_temperature, brew_temperature, steam_temperature, heating_speed =
-
-        heating_speed = self.brew_data.get_heating_speed()
-        
+        mode               = self.brew_data.get_mode()
+        heating_speed      = self.brew_data.get_heating_speed()
         boiler_temperature = self.temperature_sensor.read_temperature()
-
         target_temperature = self.brew_data.get_target_temperature()
         
 
@@ -649,7 +662,7 @@ class TemperatureSensor:
     def read_temperature(self):
         
         # Create value for sifting bias of the temperature
-        temperature_bias = 0 # -5.0
+        temperature_bias = 0
         
         # Get 7 temperature samples to list and calculate average to avoid the noise
         fault_counter = 0
@@ -673,9 +686,7 @@ class TemperatureSensor:
 
         # Calculate temperature average
         temperature = round((sum(self.temps) / len(self.temps)), 2)
-        
-        # Create error handling
-        
+                
         # Bias temperature value
         temperature = temperature + temperature_bias
         

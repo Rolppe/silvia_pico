@@ -40,14 +40,50 @@ class BLEHandler:
         self._advertise_pending = True
         self._advertise()
 
-        self.pre_infusion_mode = True
-        self.soft_pressure_release_time = 0
-        self.fast_heatup_mode = False
 
+    # ====================== ASETUSTEN LÄHETTÄMINEN ======================
+    async def send_settings(self):
+        """Lähettää vain asetukset (kutsutaan yhteyden muodostuessa ja asetuksen muutoksessa)"""
+        if not self._connections:
+            return
+
+        data = {
+            'pre_infusion_mode': self.brew_data.get_pre_infusion_mode(),
+            'pressure_soft_release_mode': self.brew_data.get_pressure_soft_release_mode(),
+            'fast_heatup_mode': self.brew_data.get_fast_heatup_mode(),
+            'brew_temperature': self.brew_data.get_brew_temperature()
+        }
+
+        json_data = json.dumps(data)
+        for conn_handle in self._connections:
+            self._ble.gatts_notify(conn_handle, self._handle_tx, json_data)
+
+
+# ====================== REAALIAIKAISTEN TIETOJEN LÄHETTÄMINEN ======================
+
+    async def send_data(self):
+        """Lähettää jatkuvasti reaaliaikaiset mittaustiedot"""
+        if not self._connections:
+            return
+
+        data = {
+            'boiler_temperature': self.brew_data.get_boiler_temperature(),
+            'pressure': self.brew_data.get_pressure(),
+            'mode': self.brew_data.get_mode(),
+            'pump_ratio': 0   # voit lisätä myöhemmin jos tarvitset
+        }
+
+        json_data = json.dumps(data)
+        for conn_handle in self._connections:
+            self._ble.gatts_notify(conn_handle, self._handle_tx, json_data)
+
+    # ====================== IRQ (komentojen käsittely) ======================
     def _irq(self, event, data):
         if event == 1:      # Connected
             conn_handle, _, _ = data
             self._connections.add(conn_handle)
+            print("Connected - sending initial settings")
+            asyncio.create_task(self.send_settings())   # asetukset heti yhteydessä
 
         elif event == 2:    # Disconnected
             conn_handle, _, _ = data
@@ -59,33 +95,47 @@ class BLEHandler:
             value = self._ble.gatts_read(value_handle)
             command = value.decode('utf-8').strip()
 
-            if command == 'set_pre_infusion:on':
-                self.pre_infusion_mode = True
-            elif command == 'set_pre_infusion:off':
-                self.pre_infusion_mode = False
-            elif command == 'set_soft_pressure_release:on':
-                self.soft_pressure_release_time = 5
-            elif command == 'set_soft_pressure_release:off':
-                self.soft_pressure_release_time = 0
-            elif command == 'fast_heatup:on':
-                self.brew_data.set_fast_heatup_mode(True)
-            elif command == 'fast_heatup:off':
-                self.brew_data.set_fast_heatup_mode(False)
-            elif command.startswith('brew_pressure:'):
+            print(f"Received: '{command}'")
+
+            updated = False
+
+            if command.startswith('pre:'):
+                if command == 'pre:on':
+                    self.brew_data.set_pre_infusion_mode(True)
+                    updated = True
+                elif command == 'pre:off':
+                    self.brew_data.set_pre_infusion_mode(False)
+                    updated = True
+
+            elif command.startswith('spr:'):
+                if command == 'spr:on':
+                    self.brew_data.set_pressure_soft_release_time(5)
+                    self.brew_data.set_pressure_soft_release_mode(True)
+                    updated = True
+                elif command == 'spr:off':
+                    self.brew_data.set_pressure_soft_release_time(0)
+                    self.brew_data.set_pressure_soft_release_mode(False)
+                    updated = True
+
+            elif command.startswith('fhu:'):
+                if command == 'fhu:on':
+                    self.brew_data.set_fast_heatup_mode(True)
+                    updated = True
+                elif command == 'fhu:off':
+                    self.brew_data.set_fast_heatup_mode(False)
+                    updated = True
+
+            elif command.startswith('bt:'):
                 try:
-                    brew_pressure = float(command.split(':', 1)[1])
-                    if 5.0 <= brew_pressure <= 12.0 and brew_pressure != self.brew_data.get_brew_pressure():
-                        self.brew_data.set_brew_pressure(brew_pressure)
+                    temp = float(command.split(':', 1)[1])
+                    self.brew_data.set_brew_temperature(temp)
+                    updated = True
                 except:
                     pass
-            elif command.startswith('brew_temperature:'):
-                try:
-                    brew_temperature = float(command.split(':', 1)[1])
-                    if brew_temperature != self.brew_data.get_brew_temperature():
-                        print("bluetooth handler new temperature")
-                        self.brew_data.set_brew_temperature(brew_temperature)
-                except:
-                    pass
+
+            if updated:
+                asyncio.create_task(self.send_settings())   # asetukset heti muutoksen jälkeen
+
 
     def advertise_if_needed(self):
         if self._advertise_pending:
@@ -102,16 +152,24 @@ class BLEHandler:
         if not self._connections:
             return
 
-        pressure_bar = self.brew_data.get_pressure()
-        boiler_temperature = self.brew_data.get_boiler_temperature()
-        mode = self.brew_data.get_mode()
-        brew_temperature = self.brew_data.get_brew_temperature()
-
+        pressure                   = self.brew_data.get_pressure()
+        boiler_temperature         = self.brew_data.get_boiler_temperature()
+        mode                       = self.brew_data.get_mode()
+        brew_temperature           = self.brew_data.get_brew_temperature()
+        pre_infusion_mode          = self.brew_data.get_pre_infusion_mode()
+        pressure_soft_release_mode = self.brew_data.get_pressure_soft_release_mode()
+        fast_heatup_mode           = self.brew_data.get_fast_heatup_mode()
+        pump_ratio                 = self.brew_data.get_pump_ratio()
+        
         data = {
-            'temp': boiler_temperature,
-            'pressure': pressure_bar,
-            'mode': mode,
-            'brew_temperature': brew_temperature
+            'boiler_temperature'         : boiler_temperature,
+            'pressure'                   : pressure,
+            'mode'                       : mode,
+            'brew_temperature'           : brew_temperature,
+            'pre_infusion_mode'          : pre_infusion_mode,                  
+            'pressure_soft_release_mode' : pressure_soft_release_mode,
+            'fast_heatup_mode'           : fast_heatup_mode,
+            'pump_ratio'                 : pump_ratio
         }
 
         json_data = json.dumps(data)

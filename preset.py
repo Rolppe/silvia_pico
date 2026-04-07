@@ -14,10 +14,11 @@ FEATURES = {
     'print_values_flag'              : False,
     'soft_pressure_release_flag'     : True,
     
-    'pre_infusion_pressure_buildup_time' : 0,
-    'pre_infusion_time'                  : 5,
-    'soft_pressure_release_time'         : 2,
-    'brew_pressure_bar'                  : 9
+    'pre_infusion_pressure_buildup_time'         : 0,
+    'pre_infusion_time'                          : 5,
+    'pressure_soft_release_time'                 : 4,
+    'brew_pressure_bar'                          : 9,
+    'soft_pressure_release_arming_pressure'      : 3
     }
 
 # ============================================================================

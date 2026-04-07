@@ -35,8 +35,8 @@ A modern, open-source firmware that replaces the original thermostat and manual 
 
 ### 📖 Full Documentation
 
-- [Hardware & Wiring](docs/hardware.md)
-<!-- - [Installation on Pico W](docs/installation.md) -->
+- [Hardware & Wiring](docs/hardware.md)<!--
+- [Installation on Pico W](docs/installation.md) -->
 - [Configuration](docs/configuration.md)
 - [Usage Guide](docs/usage.md)
 - [System Architecture](docs/architecture.md)
